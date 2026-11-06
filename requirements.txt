@@ -2,6 +2,7 @@
 # separately per the README (index-url), because the right wheel depends on the
 # machine's CUDA version.
 ultralytics==8.4.106
+lapx==0.5.11                 # linear assignment for ByteTrack
 opencv-python==4.11.0.86
 numpy==2.1.1
 PyYAML==6.0.2
