@@ -52,6 +52,9 @@ class StreamWorker(threading.Thread):
         writer.writeheader()
         cf.flush()
         af = open(os.path.join(outdir, f"{name}_alerts.jsonl"), "w", encoding="utf-8")
+        occf = open(os.path.join(outdir, f"{name}_occupancy.csv"), "w", newline="", encoding="utf-8")
+        occ_writer = csv.DictWriter(occf, fieldnames=["t", "queue", "staff", "in", "out"])
+        occ_writer.writeheader()
         vid = None
 
         is_file = _is_file(uri)
@@ -105,6 +108,8 @@ class StreamWorker(threading.Thread):
                 for al in res["alerts"]:
                     af.write(json.dumps(al) + "\n")
                     af.flush()
+                if res["sample"] is not None:
+                    occ_writer.writerow(res["sample"])
 
                 totals = pipe.totals()
                 self.shared.update(name, {**totals, "fps": round(self._fps_est, 1), "t": round(t, 1)})
@@ -140,6 +145,7 @@ class StreamWorker(threading.Thread):
         finally:
             cf.close()
             af.close()
+            occf.close()
             if vid is not None:
                 vid.release()
             if cap is not None:

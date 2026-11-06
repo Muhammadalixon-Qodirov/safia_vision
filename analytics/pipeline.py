@@ -47,7 +47,7 @@ class StreamPipeline:
         if self.counter is not None:
             crossings = self.counter.update([(tk[0], *_ref(tk)) for tk in tracks])
 
-        finished_alerts, new_rows = [], []
+        finished_alerts, new_rows, sample = [], [], None
         step = int(t * self.sample_hz)
         if step != self._last_step:                 # take a sample on the configured cadence
             self._last_step = step
@@ -57,6 +57,11 @@ class StreamPipeline:
             staff = occ.get("staff", -1)             # -1 = no staff zone -> never "empty"
             if self.alerts is not None:
                 finished_alerts = self.alerts.update(t, queue, staff)
+            sample = {"t": round(t, 2),
+                      "queue": queue if self.has_queue else "",
+                      "staff": staff if self.has_staff else "",
+                      "in": self.counter.in_count if self.counter else 0,
+                      "out": self.counter.out_count if self.counter else 0}
             self.agg.sample(
                 t,
                 in_total=self.counter.in_count if self.counter else 0,
@@ -68,7 +73,7 @@ class StreamPipeline:
                 new_rows = self.agg.rows[self._rows_written:]
                 self._rows_written = len(self.agg.rows)
         return {"crossings": crossings, "alerts": finished_alerts, "minute_rows": new_rows,
-                "occ": self.last_occ}
+                "sample": sample, "occ": self.last_occ}
 
     def finalize(self) -> dict:
         """Close the stream: flush the last minute and any still-open alerts."""

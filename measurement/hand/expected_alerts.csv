@@ -1,0 +1,3 @@
+source,type,start_seconds,end_seconds
+counter,queue,,
+counter,empty_counter,,

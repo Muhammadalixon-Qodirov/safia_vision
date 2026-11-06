@@ -1,0 +1,23 @@
+# One command:  docker compose -f docker/docker-compose.yml up --build
+# Mounts the config, downloaded models and videos, and the output folder.
+services:
+  analytics:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../config:/app/config
+      - ../models:/app/models
+      - ../videos:/app/videos
+      - ../output:/app/output
+    ports:
+      - "8000:8000"      # the optional web page, if you add --web to the command
+    # --- GPU (optional): needs the NVIDIA Container Toolkit on the host, and a
+    # CUDA base image in the Dockerfile. Then uncomment: ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
