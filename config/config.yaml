@@ -1,0 +1,51 @@
+# One config for the whole service. Lines, zones, thresholds, sources, model,
+# output — nothing is hard-coded in the code. Coordinates are in pixels of the
+# source's native resolution. Edit the line/zone points to match your clips
+# (use scripts/show_frame.py to grab a frame and read coordinates).
+
+model:
+  weights: models/yolov8n.pt   # downloaded by scripts/download_models.py
+  device: 0                    # 0 = first GPU; "cpu" to force CPU
+  imgsz: 640
+  conf: 0.3
+  half: true                   # FP16 on GPU (ignored on CPU)
+  tracker: bytetrack.yaml      # ultralytics built-in ByteTrack
+
+output:
+  dir: output
+  annotated_video: true        # write an annotated mp4 per source (for the GIF/demo)
+  blur_faces: true             # blur the head region in any written frame
+
+# alert thresholds (shared); each alert records start, end, peak and fires once
+alerts:
+  queue:
+    min_people: 3              # N: at least this many in the queue zone
+    min_seconds: 10            # T: for at least this long
+  empty_counter:
+    min_seconds: 15            # T: counter empty this long while someone waits
+  grace_seconds: 2             # condition must fail this long before an alert ends (anti-flicker)
+
+# sample the zones and alerts at this rate (Hz). 1 = once per video second.
+sample_hz: 1
+
+sources:
+  - name: entrance
+    uri: videos/entrance.mp4
+    realtime: true             # play the file at its real frame rate
+    # door line: two endpoints [x, y]. in_direction is the movement vector that
+    # counts as IN (people entering move this way). Here: downward into the store.
+    line:
+      a: [100, 500]
+      b: [1180, 500]
+      in_direction: [0, 1]
+    zones: {}
+
+  - name: counter
+    uri: videos/counter.mp4
+    realtime: true
+    line: null                 # no door line at the counter camera
+    zones:
+      queue:
+        polygon: [[200, 300], [900, 300], [900, 700], [200, 700]]
+      staff:
+        polygon: [[950, 250], [1250, 250], [1250, 600], [950, 600]]

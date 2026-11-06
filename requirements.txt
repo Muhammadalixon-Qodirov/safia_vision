@@ -1,0 +1,12 @@
+# pinned for reproducibility (case-study rule). CUDA build of torch is installed
+# separately per the README (index-url), because the right wheel depends on the
+# machine's CUDA version.
+ultralytics==8.4.106
+opencv-python==4.11.0.86
+numpy==2.1.1
+PyYAML==6.0.2
+# optional web page
+fastapi==0.115.6
+uvicorn==0.34.0
+# tests
+pytest==8.3.4

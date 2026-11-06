@@ -1,0 +1,25 @@
+# weights and videos are downloaded, never committed (case-study rule)
+models/
+videos/
+*.pt
+*.onnx
+*.engine
+*.mp4
+*.avi
+*.mkv
+
+# outputs
+output/
+*.log
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
