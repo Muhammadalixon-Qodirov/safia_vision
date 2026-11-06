@@ -11,3 +11,5 @@ fastapi==0.115.6
 uvicorn==0.34.0
 # tests
 pytest==8.3.4
+# optional, only for the ONNX export bonus (scripts/export_onnx.py):
+#   pip install onnx==1.23.2 onnxruntime-gpu   # or onnxruntime for CPU

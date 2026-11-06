@@ -25,7 +25,8 @@ class StreamPipeline:
         line = source.get("line")
         self.counter = None
         if line:
-            self.counter = LineCounter(line["a"], line["b"], line.get("in_direction"))
+            self.counter = LineCounter(line["a"], line["b"], line.get("in_direction"),
+                                       margin=line.get("margin", 4.0))
         zones = source.get("zones") or {}
         self.has_queue = "queue" in zones
         self.has_staff = "staff" in zones
@@ -34,8 +35,8 @@ class StreamPipeline:
         if zones:
             self.alerts = AlertManager(self.name, alerts_cfg["queue"], alerts_cfg["empty_counter"],
                                        grace=alerts_cfg.get("grace_seconds", 2.0))
-        self.agg = MinuteAggregator()
         self.sample_hz = float(sample_hz)
+        self.agg = MinuteAggregator(self.sample_hz)
         self._last_step = -1
         self._rows_written = 0
         self.last_occ = {}

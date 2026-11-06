@@ -12,7 +12,8 @@ FIELDS = ["minute", "in", "out", "avg_queue", "max_queue", "empty_counter_second
 
 
 class MinuteAggregator:
-    def __init__(self):
+    def __init__(self, sample_hz: float = 1.0):
+        self.sample_hz = float(sample_hz) or 1.0
         self.rows = []
         self._minute = None
         self._in0 = 0
@@ -43,7 +44,7 @@ class MinuteAggregator:
             "out": out_total - self._out0,
             "avg_queue": round(avgq, 2),
             "max_queue": max(self._q) if self._q else 0,
-            "empty_counter_seconds": self._empty,
+            "empty_counter_seconds": int(round(self._empty / self.sample_hz)),
         })
         self._q = []
         self._empty = 0

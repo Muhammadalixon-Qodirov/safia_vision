@@ -8,7 +8,10 @@ import os
 import shutil
 from pathlib import Path
 
-MODELS = ["yolov8n.pt"]   # add "yolo11n.pt", "yolov8s.pt" here if you want to compare
+# Two small detectors so you can compare on YOUR clips. Default is yolov8n
+# (fast); step up to a "-s" model if recall on distant/occluded people is low.
+# Do not assume a newer name is better - measure on your footage.
+MODELS = ["yolov8n.pt", "yolo11n.pt"]
 
 
 def main():

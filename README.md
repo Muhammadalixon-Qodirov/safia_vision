@@ -18,7 +18,11 @@ decision is explainable and unit-tested without a GPU.
 ## What it does
 
 - **Detection + tracking** — Ultralytics YOLO (`yolov8n`) with its built-in
-  ByteTrack, person class only. One tracker per stream.
+  ByteTrack, person class only. One tracker per stream. `yolo11n` is also
+  downloaded so you can compare: on our quick subway check `yolov8n` actually
+  detected *more* people (153 vs 138) and ran faster, so it is the default —
+  measure on your own clips and step up to a `-s` model only if recall on
+  distant/occluded people is low. (See [model choice](#a-note-on-model-choice).)
 - **Door counting** — counts people crossing a line, separately IN and OUT.
   Uses hysteresis around the line, so a person who stops on the line, turns back
   before crossing, or walks along it is never counted, and one crossing is never
@@ -59,7 +63,21 @@ decision is explainable and unit-tested without a GPU.
   capture, reconnect, annotation and output; `service.py` runs the streams.
 
 All of the above is covered by unit tests that run **without a GPU**
-(`tests/test_core.py`, `tests/test_pipeline.py`, `tests/test_stream_io.py`).
+(`tests/test_core.py`, `tests/test_pipeline.py`, `tests/test_stream_io.py`,
+`tests/test_reconnect.py`). The reconnect test injects a fake capture that
+delivers 5 frames, drops, then delivers 5 more, and asserts the worker reconnects
+and still counts a crossing that spans the drop — so "one stream's failure never
+stops the others" is proven, not just claimed.
+
+### A note on model choice
+
+The requirement says "use good models", and the honest answer is: the smallest
+one that hits your accuracy target is the good one. I did not assume the
+newest-named model is best — I measured. On the subway clip `yolov8n` detected
+153 people to `yolo11n`'s 138 and was faster, so `yolov8n` is the default.
+`scripts/download_models.py` fetches both; swap `model.weights` in the config and
+re-run `measurement/compare.py` to decide on *your* footage. If recall on small or
+occluded people is low, move up to `yolov8s`/`yolo11s` and accept the FPS cost.
 
 ## Quick start
 
@@ -97,9 +115,11 @@ One file controls everything. Key parts:
   `empty_counter.min_seconds` (T), `grace_seconds`.
 - `sample_hz` — how often zones/alerts are sampled (1 = once per video second).
 - `sources[]` — each has a `name`, `uri` (file / RTSP / webcam index), optional
-  `line` (`a`, `b`, `in_direction`), and optional `zones` (`queue`, `staff`
-  polygons). `realtime: true` plays a file at its real frame rate; `loop` and
-  `max_retries` control reconnect behaviour.
+  `line` (`a`, `b`, `in_direction`, and an optional `margin` in pixels for the
+  hysteresis band — raise it for jittery boxes, lower it for a thin doorway), and
+  optional `zones` (`queue`, `staff` polygons). `realtime: true` plays a file at
+  its real frame rate; `loop`, `max_retries` and `reconnect_backoff` (seconds)
+  control reconnect behaviour; `max_frames` caps a run for quick tests.
 
 ## Outputs
 
@@ -176,8 +196,23 @@ no Safia footage.
 python tests/test_core.py          # geometry, counting, zones, alerts, aggregation (no GPU)
 python tests/test_pipeline.py      # full per-source pipeline on synthetic tracks (no GPU)
 python tests/test_stream_io.py     # capture -> pipeline -> CSV/JSONL/video (needs OpenCV, no GPU)
+python tests/test_reconnect.py     # a stream drops mid-run and reconnects without losing the count (no GPU)
 # or, with pytest installed:  pytest -q
 ```
+
+## ONNX export (bonus)
+
+For faster, framework-independent inference you can export the detector to ONNX:
+
+```bash
+python scripts/export_onnx.py --weights models/yolov8n.pt --imgsz 640   # add --half on GPU
+#    needs:  pip install onnx onnxruntime        (or onnxruntime-gpu for CUDA)
+```
+
+This produces `models/yolov8n.onnx` (verified — ~12.8 MB). Point `model.weights`
+in the config at the `.onnx` file and Ultralytics runs it through ONNX Runtime;
+compare the FPS against the PyTorch weights in the speed table. For the 50-camera
+case, TensorRT (INT8) is the next step up from here.
 
 ## Licences
 

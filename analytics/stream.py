@@ -26,7 +26,8 @@ def _is_file(uri) -> bool:
 
 
 class StreamWorker(threading.Thread):
-    def __init__(self, source, model_cfg, output_cfg, alerts_cfg, sample_hz, detector, shared, stop_event):
+    def __init__(self, source, model_cfg, output_cfg, alerts_cfg, sample_hz, detector, shared, stop_event,
+                 open_capture=None):
         super().__init__(daemon=True, name=source["name"])
         self.source = source
         self.output_cfg = output_cfg
@@ -36,6 +37,8 @@ class StreamWorker(threading.Thread):
         self.shared = shared
         self.stop = stop_event
         self._fps_est = 0.0
+        # how to open a source; injectable so the reconnect path can be tested without a real stream
+        self._open = open_capture or (lambda uri: cv2.VideoCapture(uri))
 
     def _log(self, msg):
         print(f"[{self.source['name']}] {msg}", flush=True)
@@ -61,6 +64,7 @@ class StreamWorker(threading.Thread):
         loop = bool(self.source.get("loop", False))
         realtime = bool(self.source.get("realtime", True))
         max_retries = int(self.source.get("max_retries", 10))
+        backoff = float(self.source.get("reconnect_backoff", 2.0))
         max_frames = self.source.get("max_frames")       # optional: stop after N frames
         retries = 0
         frame_idx = 0
@@ -69,14 +73,14 @@ class StreamWorker(threading.Thread):
         try:
             while not self.stop.is_set():
                 if cap is None:
-                    cap = cv2.VideoCapture(uri)
+                    cap = self._open(uri)
                     if not cap.isOpened():
                         cap = None
                         retries += 1
                         self._log(f"cannot open (try {retries}/{max_retries})")
                         if retries > max_retries:
                             break
-                        time.sleep(min(2 * retries, 10))
+                        time.sleep(min(backoff * retries, 10))
                         continue
                     f = cap.get(cv2.CAP_PROP_FPS)
                     fps = f if 1 < f <= 240 else 25.0
@@ -97,7 +101,7 @@ class StreamWorker(threading.Thread):
                         self._log("source gone, giving up (other streams keep running)")
                         break
                     self._log(f"dropped, reconnecting ({retries}/{max_retries})")
-                    time.sleep(min(2 * retries, 10))
+                    time.sleep(min(backoff * retries, 10))
                     if loop and is_file:
                         frame_idx = 0
                     continue
