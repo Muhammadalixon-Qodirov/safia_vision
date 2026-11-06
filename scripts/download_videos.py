@@ -11,10 +11,15 @@ their licence details; this script just fetches them and records attribution.
 from __future__ import annotations
 
 import json
+import shutil
 import urllib.request
 from pathlib import Path
 
 MANIFEST = Path("config/videos.json")
+
+# Pexels/Pixabay CDNs reject the default "Python-urllib" user agent with 403, so
+# send a normal one. These files are free to download under their licence.
+USER_AGENT = "Mozilla/5.0 (compatible; store-analytics/1.0; public-clip-downloader)"
 
 TEMPLATE = [
     {
@@ -56,7 +61,10 @@ def main():
             continue
         if not dst.exists():
             print(f"downloading {it['filename']} ...")
-            urllib.request.urlretrieve(url, dst)
+            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=120) as resp, open(dst, "wb") as out:
+                shutil.copyfileobj(resp, out)
+            print(f"  -> {dst} ({dst.stat().st_size // (1024 * 1024)} MB)")
         attribution.append(
             f"- **{it['filename']}** - {it['author']}, {it['licence']} "
             f"(<{it['licence_url']}>); source: <{it['source_url']}>; used {it.get('timestamps', '')}")

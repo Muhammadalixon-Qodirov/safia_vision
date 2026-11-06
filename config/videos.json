@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "entrance.mp4",
+    "download_url": "https://videos.pexels.com/video-files/6641527/uhd_30fps.mp4",
+    "source_url": "https://www.pexels.com/video/people-going-inside-a-store-with-automatic-sliding-doors-6641527/",
+    "author": "Casey Whalen",
+    "licence": "Pexels License",
+    "licence_url": "https://www.pexels.com/license/",
+    "timestamps": "0:00-0:20",
+    "note": "store entrance, automatic sliding doors, 4K 20s - used for the door IN/OUT counting line"
+  },
+  {
+    "filename": "counter.mp4",
+    "download_url": "https://videos.pexels.com/video-files/8421356/8421356-uhd_3840_2160_25fps.mp4",
+    "source_url": "https://www.pexels.com/video/people-at-the-cashier-counter-8421356/",
+    "author": "Kampus Production",
+    "licence": "Pexels License",
+    "licence_url": "https://www.pexels.com/license/",
+    "timestamps": "0:00-0:08",
+    "note": "cashier counter with customers, 4K 8s - used for the queue and staff(empty-counter) zones. Short: good to demonstrate zones/alerts, but for a full queue-MAE (labels every 10s over >=2 min) swap in a longer counter clip."
+  },
+  {
+    "filename": "crowd-doors.mp4",
+    "download_url": "https://videos.pexels.com/video-files/9206570/9206570-hd_1920_1080_25fps.mp4",
+    "source_url": "https://www.pexels.com/video/crowd-of-people-passing-through-doors-9206570/",
+    "author": "Yaroslav Bilgovskiy",
+    "licence": "Pexels License",
+    "licence_url": "https://www.pexels.com/license/",
+    "timestamps": "0:00-1:01",
+    "note": "crowd passing through doors, 1080p 61s - second counting line; the longest clip, best for hand-counting door crossings and testing no-double-count"
+  }
+]

@@ -28,24 +28,44 @@ alerts:
 # sample the zones and alerts at this rate (Hz). 1 = once per video second.
 sample_hz: 1
 
+# The three clips come from config/videos.json (Pexels, free licence):
+#   entrance.mp4    3840x2160  store sliding doors   -> counting line
+#   counter.mp4     3840x2160  cashier counter       -> queue + staff zones
+#   crowd-doors.mp4 1920x1080  crowd through doors    -> second counting line
+# IMPORTANT: every coordinate below is a PLACEHOLDER scaled to the clip's native
+# resolution, NOT read from the real frame. Before measuring, grab a frame
+#   python scripts/show_frame.py videos/entrance.mp4 --at 5 --out entrance.jpg
+# open it, read the pixel positions of the door / queue / counter, and replace
+# the points. The counts and alerts are only as good as these coordinates.
 sources:
   - name: entrance
     uri: videos/entrance.mp4
     realtime: true             # play the file at its real frame rate
     # door line: two endpoints [x, y]. in_direction is the movement vector that
     # counts as IN (people entering move this way). Here: downward into the store.
-    line:
-      a: [100, 500]
-      b: [1180, 500]
+    line:                      # TODO verify on a real frame (3840x2160)
+      a: [0, 1200]
+      b: [3840, 1200]
       in_direction: [0, 1]
+      margin: 6                # hysteresis band (px); raise if boxes jitter
     zones: {}
 
   - name: counter
     uri: videos/counter.mp4
     realtime: true
     line: null                 # no door line at the counter camera
-    zones:
-      queue:
-        polygon: [[200, 300], [900, 300], [900, 700], [200, 700]]
-      staff:
-        polygon: [[950, 250], [1250, 250], [1250, 600], [950, 600]]
+    zones:                     # TODO verify on a real frame (3840x2160)
+      queue:                   # where customers wait
+        polygon: [[300, 1100], [1900, 1100], [1900, 2100], [300, 2100]]
+      staff:                   # behind the till, where a cashier stands
+        polygon: [[2100, 700], [3400, 700], [3400, 1700], [2100, 1700]]
+
+  - name: crowd-doors          # second entrance stream (longest clip, 1080p)
+    uri: videos/crowd-doors.mp4
+    realtime: true
+    line:                      # TODO verify on a real frame (1920x1080)
+      a: [0, 540]
+      b: [1920, 540]
+      in_direction: [0, 1]
+      margin: 4
+    zones: {}
