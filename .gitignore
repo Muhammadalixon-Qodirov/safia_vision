@@ -10,6 +10,7 @@ videos/
 
 # outputs
 output/
+output_demo/
 *.log
 
 # python

@@ -63,13 +63,31 @@ def test_full_pipeline():
     assert rows[0]["max_queue"] == 3
 
 
+def test_last_minute_includes_a_crossing_after_the_final_sample():
+    src = {"name": "entrance", "line": {"a": [0, 100], "b": [200, 100], "in_direction": [0, 1]}, "zones": {}}
+    pipe = StreamPipeline(src, ALERTS, sample_hz=1)
+    pipe.process(0.0, [person(1, 50, 70)])          # sampled at step 0 (in_total still 0)
+    pipe.process(0.5, [person(1, 50, 130)])         # crosses IN, same step -> not resampled
+    fin = pipe.finalize()
+    assert pipe.counter.in_count == 1
+    assert fin["minute_rows"] and fin["minute_rows"][0]["in"] == 1   # the minute row must include it
+
+
+def _run_all():
+    failed = 0
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            try:
+                fn()
+                print(f"PASS  {name}")
+            except AssertionError as e:
+                failed += 1
+                print(f"FAIL  {name}: {e!r}")
+            except Exception as e:
+                failed += 1
+                print(f"ERROR {name}: {type(e).__name__}: {e}")
+    return failed
+
+
 if __name__ == "__main__":
-    try:
-        test_full_pipeline()
-        print("PASS  test_full_pipeline")
-    except AssertionError as e:
-        print(f"FAIL  test_full_pipeline: {e!r}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"ERROR test_full_pipeline: {type(e).__name__}: {e}")
-        sys.exit(1)
+    sys.exit(1 if _run_all() else 0)

@@ -1,0 +1,46 @@
+# Demo config for the two public clips (subway = entrance line, market-square =
+# zones). Line/zone coordinates were placed from where people actually appear.
+# Thresholds are low because the clips are short.
+model:
+  weights: models/yolov8n.pt
+  device: 0
+  imgsz: 640
+  conf: 0.3
+  half: true
+  tracker: bytetrack.yaml
+
+output:
+  dir: output_demo
+  annotated_video: true
+  blur_faces: true
+
+alerts:
+  queue:
+    min_people: 3
+    min_seconds: 3
+  empty_counter:
+    min_seconds: 3
+  grace_seconds: 2
+
+sample_hz: 1
+
+sources:
+  - name: subway            # entrance camera: count people crossing the line
+    uri: videos/subway.mp4
+    realtime: false
+    max_frames: 500
+    line:
+      a: [0, 1665]
+      b: [2160, 1665]
+      in_direction: [0, 1]
+    zones: {}
+
+  - name: market-square     # counter camera: queue and staff zones
+    uri: videos/market-square.mp4
+    realtime: false
+    line: null
+    zones:
+      queue:
+        polygon: [[200, 2500], [1900, 2500], [1900, 3800], [200, 3800]]
+      staff:
+        polygon: [[200, 900], [1900, 900], [1900, 1800], [200, 1800]]

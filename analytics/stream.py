@@ -61,6 +61,7 @@ class StreamWorker(threading.Thread):
         loop = bool(self.source.get("loop", False))
         realtime = bool(self.source.get("realtime", True))
         max_retries = int(self.source.get("max_retries", 10))
+        max_frames = self.source.get("max_frames")       # optional: stop after N frames
         retries = 0
         frame_idx = 0
         fps = 25.0
@@ -80,6 +81,9 @@ class StreamWorker(threading.Thread):
                     f = cap.get(cv2.CAP_PROP_FPS)
                     fps = f if 1 < f <= 240 else 25.0
 
+                if max_frames and frame_idx >= int(max_frames):
+                    self._log(f"reached max_frames={max_frames}")
+                    break
                 t_start = time.monotonic()
                 ok, frame = cap.read()
                 if not ok:

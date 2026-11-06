@@ -78,6 +78,8 @@ class StreamPipeline:
     def finalize(self) -> dict:
         """Close the stream: flush the last minute and any still-open alerts."""
         alerts = self.alerts.flush() if self.alerts is not None else []
+        if self.counter is not None:             # include crossings after the last 1 Hz sample
+            self.agg._last = (self.counter.in_count, self.counter.out_count)
         self.agg.flush()
         rows = self.agg.rows[self._rows_written:]
         self._rows_written = len(self.agg.rows)
