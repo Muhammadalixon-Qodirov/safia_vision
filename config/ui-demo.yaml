@@ -1,0 +1,49 @@
+# Config for the live web UI demo (python run.py --config config/ui-demo.yaml --web).
+# Same two verified clips as demo.yaml, but tuned for watching in the browser:
+# realtime playback, looped, and live_view on (publishes annotated JPEG frames to
+# the page). No annotated mp4 is written here - the feed is live.
+model:
+  weights: models/yolov8n.pt
+  device: 0                    # GPU; set to "cpu" if you have no CUDA torch (slower)
+  imgsz: 640
+  conf: 0.3
+  half: true
+  tracker: bytetrack.yaml
+
+output:
+  dir: output_ui
+  live_view: true              # stream annotated frames to the web page
+  annotated_video: false       # don't also write mp4 (keeps it light/fast)
+  blur_faces: true
+
+alerts:
+  queue:
+    min_people: 3
+    min_seconds: 3
+  empty_counter:
+    min_seconds: 3
+  grace_seconds: 2
+
+sample_hz: 1
+
+sources:
+  - name: subway            # entrance camera: counts people crossing the line
+    uri: videos/subway.mp4
+    realtime: true          # play at the clip's real speed so you can watch
+    loop: true              # replay continuously for the demo
+    line:
+      a: [0, 1665]
+      b: [2160, 1665]
+      in_direction: [0, 1]
+    zones: {}
+
+  - name: market-square     # counter camera: queue and staff zones
+    uri: videos/market-square.mp4
+    realtime: true
+    loop: true
+    line: null
+    zones:
+      queue:
+        polygon: [[200, 2500], [1900, 2500], [1900, 3800], [200, 3800]]
+      staff:
+        polygon: [[200, 900], [1900, 900], [1900, 1800], [200, 1800]]

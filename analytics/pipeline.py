@@ -94,3 +94,19 @@ class StreamPipeline:
             "staff": self.last_occ.get("staff", 0),
             "active_alerts": self.alerts.active_alerts() if self.alerts else [],
         }
+
+    def reset(self):
+        """Zero the counts, zone occupancy, alerts and per-minute rows (live 'reset')."""
+        if self.counter is not None:
+            self.counter.reset_counts()
+        if self.alerts is not None:
+            self.alerts.reset()
+        self.agg = MinuteAggregator(self.sample_hz)
+        self._last_step = -1
+        self._rows_written = 0
+        self.last_occ = {}
+
+    def set_thresholds(self, **kw):
+        """Change alert thresholds live. No-op if this source has no zones."""
+        if self.alerts is not None:
+            self.alerts.set_thresholds(**kw)

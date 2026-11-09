@@ -100,3 +100,20 @@ class AlertManager:
 
     def active_alerts(self):
         return [a.atype for a in (self.q, self.e) if a.active]
+
+    def set_thresholds(self, queue_n=None, queue_seconds=None, empty_seconds=None, grace=None):
+        """Change alert thresholds live (from the web controls). None = leave as is."""
+        if queue_n is not None:
+            self.queue_n = max(1, int(queue_n))
+        if queue_seconds is not None:
+            self.q.min_seconds = max(0.0, float(queue_seconds))
+        if empty_seconds is not None:
+            self.e.min_seconds = max(0.0, float(empty_seconds))
+        if grace is not None:
+            self.q.grace = self.e.grace = max(0.0, float(grace))
+
+    def reset(self):
+        """Clear alert state (used by the live 'reset' control). Thresholds are kept."""
+        self.q._reset()
+        self.e._reset()
+        self.finished = []

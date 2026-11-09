@@ -40,15 +40,16 @@ def draw(frame, tracks, source, totals):
         cv2.rectangle(frame, (x1, y1), (x2, y2), _GREEN, 2)
         cv2.putText(frame, f"#{tid}", (x1, max(0, y1 - 6)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, _GREEN, 2)
-    # HUD
-    lines = [f"{source['name']}  IN {totals['in']}  OUT {totals['out']}"]
+    # HUD (o'zbekcha)
+    _AT = {"queue": "navbat to'lgan", "empty_counter": "bo'sh kassa"}
+    lines = [f"{source['name']}  KIRDI {totals['in']}  CHIQDI {totals['out']}"]
     if source.get("zones"):
-        lines.append(f"queue {totals['queue']}   staff {totals['staff']}")
+        lines.append(f"navbat {totals['queue']}   sotuvchi {totals['staff']}")
     y = 30
     for s in lines:
         cv2.putText(frame, s, (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, _WHITE, 2)
         y += 32
     for a in totals.get("active_alerts", []):
-        cv2.putText(frame, f"ALERT: {a}", (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.9, _RED, 2)
+        cv2.putText(frame, f"ALERT: {_AT.get(a, a)}", (12, y), cv2.FONT_HERSHEY_SIMPLEX, 0.9, _RED, 2)
         y += 34
     return frame

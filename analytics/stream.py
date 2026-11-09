@@ -37,6 +37,7 @@ class StreamWorker(threading.Thread):
         self.shared = shared
         self.stop = stop_event
         self._fps_est = 0.0
+        self._ctl_applied = {}       # last-applied live controls (reset seq, thresholds)
         # how to open a source; injectable so the reconnect path can be tested without a real stream
         self._open = open_capture or (lambda uri: cv2.VideoCapture(uri))
 
@@ -66,6 +67,7 @@ class StreamWorker(threading.Thread):
         max_retries = int(self.source.get("max_retries", 10))
         backoff = float(self.source.get("reconnect_backoff", 2.0))
         max_frames = self.source.get("max_frames")       # optional: stop after N frames
+        live_view = bool(self.output_cfg.get("live_view", False))  # publish JPEGs for the web page
         retries = 0
         frame_idx = 0
         fps = 25.0
@@ -88,12 +90,33 @@ class StreamWorker(threading.Thread):
                 if max_frames and frame_idx >= int(max_frames):
                     self._log(f"reached max_frames={max_frames}")
                     break
+
+                # --- apply live controls from the web page ---
+                ctl = self.shared.controls(name)
+                rseq = ctl.get("reset_seq", 0)
+                if rseq != self._ctl_applied.get("reset", 0):
+                    pipe.reset()
+                    self._ctl_applied["reset"] = rseq
+                th = (ctl.get("queue_n"), ctl.get("queue_seconds"), ctl.get("empty_seconds"))
+                if th != self._ctl_applied.get("th"):
+                    pipe.set_thresholds(queue_n=ctl.get("queue_n"),
+                                        queue_seconds=ctl.get("queue_seconds"),
+                                        empty_seconds=ctl.get("empty_seconds"))
+                    self._ctl_applied["th"] = th
+                if ctl.get("paused"):
+                    time.sleep(0.08)            # freeze on the current frame
+                    continue
+                blur = bool(ctl.get("blur", self.output_cfg.get("blur_faces", True)))
+
                 t_start = time.monotonic()
                 ok, frame = cap.read()
                 if not ok:
                     cap.release()
                     cap = None
-                    if is_file and not loop:
+                    if is_file:
+                        if loop:
+                            frame_idx = 0            # replay from the start, no retry penalty
+                            continue
                         self._log("end of file")
                         break
                     retries += 1
@@ -102,8 +125,6 @@ class StreamWorker(threading.Thread):
                         break
                     self._log(f"dropped, reconnecting ({retries}/{max_retries})")
                     time.sleep(min(backoff * retries, 10))
-                    if loop and is_file:
-                        frame_idx = 0
                     continue
                 retries = 0
 
@@ -116,22 +137,38 @@ class StreamWorker(threading.Thread):
                 for al in res["alerts"]:
                     af.write(json.dumps(al) + "\n")
                     af.flush()
+                    self.shared.add_alert(name, al)
                 if res["sample"] is not None:
                     occ_writer.writerow(res["sample"])
 
                 totals = pipe.totals()
-                self.shared.update(name, {**totals, "fps": round(self._fps_est, 1), "t": round(t, 1)})
+                meta = {"fps": round(self._fps_est, 1), "t": round(t, 1),
+                        "n_people": len(tracks),
+                        "has_line": pipe.counter is not None,
+                        "has_zones": pipe.alerts is not None}
+                if pipe.alerts is not None:
+                    meta["queue_n"] = pipe.alerts.queue_n
+                    meta["queue_seconds"] = pipe.alerts.q.min_seconds
+                    meta["empty_seconds"] = pipe.alerts.e.min_seconds
+                self.shared.update(name, {**totals, **meta})
 
-                if self.output_cfg.get("annotated_video"):
-                    if vid is None:
-                        h, w = frame.shape[:2]
-                        vid = cv2.VideoWriter(os.path.join(outdir, name, "annotated.mp4"),
-                                              cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+                if self.output_cfg.get("annotated_video") or live_view:
                     vis = frame.copy()
-                    if self.output_cfg.get("blur_faces", True):
+                    if blur:
                         privacy.blur_heads(vis, tracks)
                     annotate.draw(vis, tracks, self.source, totals)
-                    vid.write(vis)
+                    if self.output_cfg.get("annotated_video"):
+                        if vid is None:
+                            h, w = frame.shape[:2]
+                            vid = cv2.VideoWriter(os.path.join(outdir, name, "annotated.mp4"),
+                                                  cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+                        vid.write(vis)
+                    if live_view:
+                        h, w = vis.shape[:2]
+                        disp = vis if w <= 960 else cv2.resize(vis, (960, int(h * 960 / w)))
+                        ok_enc, buf = cv2.imencode(".jpg", disp, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                        if ok_enc:
+                            self.shared.set_frame(name, buf.tobytes())
 
                 frame_idx += 1
                 dt = time.monotonic() - t_start

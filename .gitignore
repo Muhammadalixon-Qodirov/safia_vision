@@ -11,6 +11,7 @@ videos/
 # outputs
 output/
 output_demo/
+output_ui/
 *.log
 
 # python

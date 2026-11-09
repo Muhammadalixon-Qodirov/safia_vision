@@ -38,6 +38,14 @@ class LineCounter:
         self._side: dict[int, int] = {}     # tid -> last clearly-committed side (+1/-1)
         self._seen: dict[int, int] = {}     # tid -> last frame seen
 
+    def reset_counts(self):
+        """Zero the counts and the per-track memory (used by the live 'reset' control)."""
+        self.in_count = 0
+        self.out_count = 0
+        self._frame = 0
+        self._side.clear()
+        self._seen.clear()
+
     def update(self, detections):
         """detections: iterable of (track_id, x, y). Returns [(track_id, 'in'|'out'), ...]."""
         self._frame += 1
