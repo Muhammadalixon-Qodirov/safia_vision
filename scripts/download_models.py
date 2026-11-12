@@ -12,7 +12,7 @@ from pathlib import Path
 # demo configs; config/shop.yaml uses yolov8s because on that CCTV clip it found
 # distant/occluded people (kids, people behind displays) much more steadily.
 # Do not assume a newer name is better - measure on your footage.
-MODELS = ["yolov8n.pt", "yolov8s.pt", "yolo11n.pt", "yolo11s.pt"]
+MODELS = ["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolo11n.pt", "yolo11s.pt"]
 
 
 def main():

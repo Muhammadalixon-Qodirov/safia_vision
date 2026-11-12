@@ -1,0 +1,96 @@
+# MEASUREMENT run: the four clips once each, every frame analysed (no process_fps
+# stride, no real-time pacing), all four streams concurrently in one process.
+# The live demo (config/local.yaml) budgets frames to stay real time; the numbers in
+# the README come from this file.
+#   python run.py --config config/measure.yaml
+#   python measurement/evaluate.py
+# Lines and zones are the same as config/local.yaml (see the comments there).
+model:
+  weights: models/yolov8s.pt
+  device: 0
+  imgsz: 960
+  conf: 0.1
+  half: true
+  tracker: bytetrack.yaml
+
+output:
+  dir: output_measure
+  live_view: false
+  annotated_video: false
+  blur_faces: true
+
+alerts:
+  queue:
+    min_people: 3
+    min_seconds: 10
+  empty_counter:
+    min_seconds: 15
+  grace_seconds: 2
+
+sample_hz: 1
+
+sources:
+  - name: shop1
+    uri: videos/shop1.mp4
+    realtime: false
+    loop: false
+    line:
+      a: [1105, 450]
+      b: [1035, 715]
+      in_direction: [-1, 0]
+      margin: 8
+    zones:
+      queue:
+        polygon: [[150, 90], [380, 90], [370, 390], [205, 400]]
+      staff:
+        polygon: [[30, 100], [135, 100], [185, 440], [150, 470], [60, 520]]
+
+  - name: counter2
+    uri: videos/counter2.mp4
+    realtime: false
+    loop: false
+    line: null
+    zones:
+      queue:
+        polygon: [[380, 520], [1700, 520], [1700, 780], [380, 780]]
+      staff:
+        polygon: [[1480, 800], [1920, 800], [1920, 1080], [1480, 1080]]
+
+  - name: market
+    uri: videos/market.mp4
+    realtime: false
+    loop: false
+    line: null
+    zones:
+      queue:
+        polygons:
+          - [[1500, 60], [1900, 60], [1900, 720], [1600, 720]]
+          - [[990, 40], [1250, 40], [1250, 560], [990, 560]]
+      staff:
+        polygons:
+          - [[1280, 200], [1490, 200], [1570, 700], [1280, 700]]
+          - [[720, 180], [910, 180], [910, 600], [880, 760], [720, 760]]
+
+  - name: cafe
+    uri: videos/cafe.mp4
+    realtime: false
+    loop: false
+    model:
+      weights: models/yolov8m.pt
+      conf: 0.05
+      tracker: config/bytetrack_crowd.yaml
+    line:
+      a: [520, 0]
+      b: [520, 480]
+      in_direction: [-1, 0]
+      margin: 6
+    zones:
+      queue:
+        ref: head
+        count: detections
+        min_conf: 0.1
+        smooth: 3
+        polygon: [[50, 60], [370, 60], [370, 250], [290, 260], [290, 430], [50, 430]]
+      staff:
+        merge: 0.6
+        polygon: [[130, 620], [640, 620], [640, 720], [130, 720]]
