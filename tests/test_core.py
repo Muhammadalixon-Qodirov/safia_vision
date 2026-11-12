@@ -70,6 +70,48 @@ def test_turn_back_counts_one_in_and_one_out():
     assert (c.in_count, c.out_count) == (1, 1)
 
 
+def test_standing_on_the_threshold_and_drifting_past_it_is_not_counted_with_commit():
+    # shop1 @ 1:32: walks up to the door (40 px before it), stops ON the threshold and
+    # stands there; the feet point drifts 6-22 px past the line while she stands.
+    drift = [(50, 60), (50, 80), (50, 95), (50, 106), (50, 112), (50, 118),
+             (50, 122), (50, 114), (50, 108), (50, 120), (50, 116)]
+    plain = LineCounter((0, 100), (200, 100), in_direction=(0, 1), margin=8)
+    _run(plain, drift)
+    assert plain.in_count == 1                         # margin alone: counted (the bug)
+    c = LineCounter((0, 100), (200, 100), in_direction=(0, 1), margin=8, commit=30)
+    _run(c, drift)
+    assert (c.in_count, c.out_count) == (0, 0)         # with commit: not a crossing
+    # someone who really walks through (to 40 px past the line) is still counted once
+    c2 = LineCounter((0, 100), (200, 100), in_direction=(0, 1), margin=8, commit=30)
+    _run(c2, [(50, 60), (50, 90), (50, 112), (50, 125), (50, 140), (50, 150)])
+    assert (c2.in_count, c2.out_count) == (1, 0)
+
+
+def test_pending_crossing_counts_when_the_person_walks_away_from_the_door():
+    # gets only 20 px past the line, then walks sideways off the door segment: counted
+    c = LineCounter((0, 100), (200, 100), in_direction=(0, 1), margin=8, commit=30)
+    _run(c, [(150, 60), (150, 90), (160, 115), (190, 120), (240, 120), (280, 120)])
+    assert (c.in_count, c.out_count) == (1, 0)
+
+
+def test_pending_crossing_counts_when_the_person_disappears():
+    # 20 px past the line, then out of view (e.g. behind a shelf): counted after lost_frames
+    c = LineCounter((0, 100), (200, 100), in_direction=(0, 1), margin=8, commit=30, lost_frames=4)
+    _run(c, [(50, 60), (50, 90), (50, 115), (50, 120)])
+    assert c.in_count == 0                              # still pending while visible
+    for _ in range(6):
+        c.update([])
+    assert (c.in_count, c.out_count) == (1, 0)
+
+
+def test_pending_crossing_is_cancelled_when_the_person_turns_back():
+    c = LineCounter((0, 100), (200, 100), in_direction=(0, 1), margin=8, commit=30)
+    _run(c, [(50, 60), (50, 90), (50, 115), (50, 118), (50, 95), (50, 70)])
+    for _ in range(6):
+        c.update([(1, 50, 60)])
+    assert (c.in_count, c.out_count) == (0, 0)
+
+
 def test_crossing_beside_the_end_of_the_line_is_not_counted():
     # the door is only the segment x in [0, 200]; crossing y=100 at x=260 is not the door
     c = LineCounter((0, 100), (200, 100), in_direction=(0, 1))

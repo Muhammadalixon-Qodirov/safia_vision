@@ -3,10 +3,9 @@
 | Clip | direction | hand count | system | matched (+-2 s) | missed | extra |
 |---|---|---|---|---|---|---|
 | shop1 | IN | 5 | 4 | 4 | 1 | 0 |
-| shop1 | OUT | 2 | 3 | 2 | 0 | 1 |
+| shop1 | OUT | 2 | 2 | 2 | 0 | 0 |
 
 - shop1 IN missed near [20.0] s
-- shop1 OUT extra at [92] s
 
 ## Queue count
 

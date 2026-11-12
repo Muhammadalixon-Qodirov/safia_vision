@@ -43,6 +43,7 @@ sources:
       b: [1035, 715]
       in_direction: [-1, 0]
       margin: 8
+      commit: 30               # a crossing counts once the person is 30 px through or walks away from the door; standing on the threshold is not a crossing (README: shop1 @ 1:32)
     zones:
       # customers waiting in front of the two tills (right of the counter)
       queue:

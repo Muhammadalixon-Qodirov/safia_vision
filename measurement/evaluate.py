@@ -31,10 +31,13 @@ def occupancy(out: Path, src: str) -> list[dict]:
 
 
 def crossings(occ: list[dict]) -> list[tuple[float, str]]:
-    ev, pi, po = [], 0, 0
+    """(time, direction) per system crossing. The 1 Hz log only shows that the count
+    went up between two samples, so each event gets the EARLIER sample's time; with
+    the +-2 s tolerance that covers the whole interval it happened in."""
+    ev, pi, po, pt = [], 0, 0, 0.0
     for r in occ:
-        ev += [(r["t"], "in")] * (r["in"] - pi) + [(r["t"], "out")] * (r["out"] - po)
-        pi, po = r["in"], r["out"]
+        ev += [(pt, "in")] * (r["in"] - pi) + [(pt, "out")] * (r["out"] - po)
+        pi, po, pt = r["in"], r["out"], r["t"]
     return ev
 
 

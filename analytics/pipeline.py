@@ -155,7 +155,7 @@ class StreamPipeline:
         self.counter = None
         if line:
             self.counter = LineCounter(line["a"], line["b"], line.get("in_direction"),
-                                       margin=line.get("margin", 4.0))
+                                       margin=line.get("margin", 4.0), commit=line.get("commit"))
         zones = source.get("zones") or {}
         self.has_queue = "queue" in zones
         self.has_staff = "staff" in zones

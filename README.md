@@ -23,7 +23,7 @@ was made is described under [Measurement](#measurement).
 
 | What | Result |
 |---|---|
-| Door, shop1 (5 IN, 2 OUT by hand) | IN 4/5 found, 0 extra · OUT 2/2 found, 1 extra (a person who stopped on the threshold) |
+| Door, shop1 (5 IN, 2 OUT by hand) | IN 4/5 found, 0 extra · OUT 2/2 found, 0 extra (the person who stops on the threshold at 1:32 is correctly not counted) |
 | Queue count, MAE (people) | shop1 **0.26** (19 points) · market **0.30** (30 points, every 10 s over 5 min) · cafe **0.75** (12 points, dense crowd) |
 | Alerts (shop1 + market) | 3 expected → **3 found, 0 missed, 0 wrong**. Empty-till: 0 expected, 0 raised |
 | Speed (RTX 3050 8 GB + i7-11700) | 4 cameras together: **26 frames/s in total**. One camera: 21-39 fps by model and size. The live demo keeps all 4 at real time |
@@ -64,7 +64,11 @@ only in the live demo and not in the measurement. No Safia footage is used.
   - someone who walks along the line, or past either end of the segment.
 
   One crossing is never counted twice. A real cross-and-return counts as one IN and
-  one OUT.
+  one OUT. With `commit` (shop1: 30 px), reaching the other side only makes the
+  crossing **pending**. It is counted once the person is clearly through, walks away
+  from the door, or goes out of view. It is cancelled if they step back, and someone
+  standing on the threshold is never counted, even if their feet point drifts past
+  the band while they stand.
 - **Zones and alerts.** Queue and staff polygons come from the config, and
   occupancy is measured every second.
   - **Queue alert:** at least N people in the queue for at least T seconds.
@@ -195,16 +199,22 @@ with the labels and writes `measurement/RESULTS.md`.
 | Direction | Hand count | System | Matched (±2 s) | Missed | Extra |
 |---|---|---|---|---|---|
 | IN | 5 | 4 | 4 | 1 | 0 |
-| OUT | 2 | 3 | 2 | 0 | 1 |
+| OUT | 2 | 2 | 2 | 0 | 0 |
 
 - **Missed IN at 0:20.** A woman enters at the moment a man leaves, and their
   paths cross in the doorway. The OUT is counted and the IN is not, most likely an
   ID swap while the two boxes overlap.
-- **Extra OUT at 1:32.** An older woman walks onto the threshold and **stops there
-  until the clip ends**. Her feet point drifts past the hysteresis band while she
-  stands, so it is counted. This is exactly the "stops on the line" case: the band
-  handles jitter of a few pixels but not slow drift. Fix: require the track to keep
-  moving, or to be seen beyond the band for k frames.
+- **The woman who stops on the threshold at 1:32 is not counted.** She walks up to
+  the door and stands on the threshold until the clip ends. The first version
+  counted her as OUT (OUT 3, 1 extra): while she stood, her feet point drifted 6-22
+  px past the line, beyond the 8 px hysteresis band. A larger distance alone could
+  not fix this. People who really walked in also got only about 22 px past the line
+  before leaving the door area, so a 24-30 px threshold lost 2 real INs. What
+  differs is that they **left** and she **stayed**. So a crossing is now pending
+  until the person is 30 px through, walks off the door segment, or goes out of view
+  (`commit`, tests in `tests/test_core.py`). Result: OUT 3 → 2 with 0 extra, and the
+  INs are unchanged. Remaining limit: if the tracker had lost her while she stood
+  there, the crossing would have been confirmed.
 
 **cafe door (not hand-measured).** At full frame rate the system counts 4 IN and 4
 OUT (OUT at 1:03, 1:46, 3:32, 3:49). When we looked at the doorway frame by frame,
@@ -297,7 +307,7 @@ live config gives each camera a frame budget (`process_fps`):
 
 | Clip @ time | What happens | Why | What would fix it |
 |---|---|---|---|
-| shop1 @ 1:32 | extra OUT for a woman standing on the threshold | feet point drifts past the band while she stands | require motion, or k frames beyond the band |
+| shop1 @ 1:32 | (fixed) extra OUT for a woman standing on the threshold | feet point drifts past the band while she stands | `commit`: a crossing is pending until the person is through or leaves |
 | shop1 @ 0:20 | missed IN, two people cross paths in the door | likely an ID swap while the boxes overlap | higher frame rate at the door; a ReID tracker (BoT-SORT) |
 | shop1 (children behind the red stands) | small, partly hidden children blink in and out | low detector confidence | larger model or input; `count: detections` for the zone |
 | cafe @ 1:00 | queue 2 short in a dense moment | people fully hidden behind others | a head detector trained on this view; a second camera |
@@ -408,7 +418,7 @@ the GPU was more than half idle. For 50 cameras, these things change:
 ## Tests
 
 ```bash
-python tests/test_core.py            # geometry, line counter (hysteresis, segment ends), zones, alerts, aggregation
+python tests/test_core.py            # geometry, line counter (hysteresis, segment ends, standing on the threshold, pending/turn-back), zones, alerts, aggregation
 python tests/test_pipeline.py        # pipeline on synthetic tracks; zone options: ref, polygons, detections, smooth, merge, dwell, hold
 python tests/test_stream_io.py       # capture -> pipeline -> CSV / JSONL / video
 python tests/test_reconnect.py       # a stream drops mid-run and reconnects without losing the count
