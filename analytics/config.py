@@ -56,4 +56,6 @@ def load_config(path: str) -> dict:
         for zname, z in (s.get("zones") or {}).items():
             _require("polygon" in z and len(z["polygon"]) >= 3,
                      f"source {s['name']!r}: zone {zname!r} needs a polygon of >= 3 points")
+            _require(z.get("ref", "feet") in ("feet", "head", "center"),
+                     f"source {s['name']!r}: zone {zname!r} ref must be feet, head or center")
     return cfg

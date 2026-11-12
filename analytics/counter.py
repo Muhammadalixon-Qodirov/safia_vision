@@ -50,7 +50,17 @@ class LineCounter:
         """detections: iterable of (track_id, x, y). Returns [(track_id, 'in'|'out'), ...]."""
         self._frame += 1
         events = []
+        ax, ay = self.a
+        dx, dy = self.b[0] - ax, self.b[1] - ay
+        tol = self.margin / self._len                  # allow a margin's worth past each end
         for tid, x, y in detections:
+            # Only the segment a-b is the door. A person beside its ends (past a or b) is
+            # not at the door: forget their side, so walking around an end never counts.
+            t = ((float(x) - ax) * dx + (float(y) - ay) * dy) / (self._len * self._len)
+            if t < -tol or t > 1.0 + tol:
+                self._side.pop(tid, None)
+                self._seen[tid] = self._frame
+                continue
             d = side((float(x), float(y)), self.a, self.b) / self._len   # signed px distance
             if abs(d) > self.margin:
                 sgn = 1 if d > 0 else -1

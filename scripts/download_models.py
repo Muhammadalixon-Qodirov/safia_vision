@@ -8,10 +8,11 @@ import os
 import shutil
 from pathlib import Path
 
-# Two small detectors so you can compare on YOUR clips. Default is yolov8n
-# (fast); step up to a "-s" model if recall on distant/occluded people is low.
+# Small detectors to compare on YOUR clips. yolov8n is the fast default for the
+# demo configs; config/shop.yaml uses yolov8s because on that CCTV clip it found
+# distant/occluded people (kids, people behind displays) much more steadily.
 # Do not assume a newer name is better - measure on your footage.
-MODELS = ["yolov8n.pt", "yolo11n.pt"]
+MODELS = ["yolov8n.pt", "yolov8s.pt", "yolo11n.pt", "yolo11s.pt"]
 
 
 def main():

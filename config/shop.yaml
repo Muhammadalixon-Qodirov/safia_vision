@@ -1,0 +1,53 @@
+# Config for shop1.mp4: one CCTV camera that sees BOTH the door and the till.
+# Native resolution 1270x720, ~13 fps, 98 s. Coordinates were read off gridded
+# frames of this clip (see README "Clips"); every value here is config, not code.
+model:
+  # Measured on this clip (all 1283 frames): yolov8s@960 found ~15% more people per
+  # frame than yolov8n, cut track blink-outs from 19% to 12% of frames and had the
+  # fewest fragmented IDs, at 26 fps (clip is 13 fps). yolo11s found more boxes but
+  # more 1-s fragments and ran at 18 fps. See README "Model choice".
+  weights: models/yolov8s.pt
+  device: 0
+  imgsz: 960                 # people behind the till/at the back are small; 640 missed them
+  conf: 0.1                  # floor handed to ByteTrack; its own thresholds decide new tracks
+  half: true
+  tracker: bytetrack.yaml
+
+output:
+  dir: output_shop
+  live_view: true            # stream annotated frames to the web page
+  annotated_video: false
+  blur_faces: true           # privacy: blur every head region in any shown/written frame
+
+alerts:
+  queue:
+    min_people: 3            # N: at least 3 people waiting at the till...
+    min_seconds: 10          # T: ...for at least 10 s
+  empty_counter:
+    min_seconds: 15          # T: nobody behind the till for 15 s while someone waits
+  grace_seconds: 2
+
+sample_hz: 1
+
+sources:
+  - name: shop1
+    uri: videos/shop1.mp4
+    realtime: true
+    loop: true
+    # Door: the glass door on the right. The line runs along its threshold, just
+    # inside and parallel to the dark left door jamb (from ~(1105,450) down to the
+    # floor at ~(1035,715)). People come in through it moving left, so IN = left.
+    # Only this segment is the door; people walking elsewhere are never counted.
+    line:
+      a: [1105, 450]
+      b: [1035, 715]
+      in_direction: [-1, 0]
+      margin: 8
+    zones:
+      # customers waiting in front of the two tills (right of the counter)
+      queue:
+        polygon: [[150, 90], [380, 90], [370, 390], [205, 400]]
+      # behind the counter, where the cashier(s) stand: both tills, down to the
+      # lower till where the second cashier's feet are (~y 440-520)
+      staff:
+        polygon: [[30, 100], [135, 100], [185, 440], [150, 470], [60, 520]]

@@ -1,0 +1,100 @@
+# Local test config: the CCTV clips the applicant collected, run together
+# (multi-stream, live web page). Clip licences must be confirmed before a clip is
+# used in the submission (README / GIF / measurement) - see README "Clips".
+# For MEASUREMENT run a clip on its own with realtime: false (every frame analysed);
+# this file is the real-time demo, so the analysis rate is budgeted below.
+#   shop1.mp4    1270x720 ~13 fps 98 s  - UK gift shop: door + two tills
+#   counter2.mp4 1920x1080 30 fps 105 s - food counter with one till and a roped queue
+#                (a vendor demo video with its own overlays burned in; licence unverified)
+#   market.mp4   1920x1080 15 fps 299 s - supermarket, 3 checkout lanes (2 open)
+# Measured budget: with 4 streams in one process (yolov8s@960, RTX 3050, live JPEGs)
+# the whole service analysed ~21 frames/s in total. Asking for 13+5+5+5 = 28/s made
+# shop1 and market-k2 fall to ~0.3-0.4x real time. Budget now: shop1 6.5 + 3.75 x 3
+# = ~18/s, which keeps every stream at real time (see README "Speed" / scaling note).
+model:
+  weights: models/yolov8s.pt   # chosen on shop1 dev labels (13-config grid), see README "Model choice"
+  device: 0
+  imgsz: 960
+  conf: 0.1                    # floor handed to ByteTrack; its own thresholds decide new tracks
+  half: true
+  tracker: bytetrack.yaml
+
+output:
+  dir: output_local
+  live_view: true
+  annotated_video: false
+  blur_faces: true
+
+alerts:
+  queue:
+    min_people: 3
+    min_seconds: 10
+  empty_counter:
+    min_seconds: 15
+  grace_seconds: 2
+
+sample_hz: 1
+
+sources:
+  - name: shop1
+    uri: videos/shop1.mp4
+    realtime: true
+    loop: true
+    process_fps: 7             # 13 fps clip -> every 2nd frame (6.5/s)
+    line:                      # along the glass door's threshold, IN = moving left
+      a: [1105, 450]
+      b: [1035, 715]
+      in_direction: [-1, 0]
+      margin: 8
+    zones:
+      queue:
+        polygon: [[150, 90], [380, 90], [370, 390], [205, 400]]
+      staff:
+        polygon: [[30, 100], [135, 100], [185, 440], [150, 470], [60, 520]]
+
+  - name: counter2
+    uri: videos/counter2.mp4
+    realtime: true
+    loop: true
+    process_fps: 4             # 30 fps camera: every 8th frame (3.75/s); queues don't need 30 fps
+    line: null                 # no door in view
+    zones:
+      # customers stand behind the glass counter; their lower bodies are hidden, so
+      # their boxes end around y 600-720. Includes the person being served at the till.
+      # Passers-by in the background end above y 520 and are not counted.
+      queue:
+        polygon: [[380, 520], [1700, 520], [1700, 780], [380, 780]]
+      # behind the till (bottom right): the cashier's box reaches the bottom edge
+      staff:
+        polygon: [[1480, 800], [1920, 800], [1920, 1080], [1480, 1080]]
+
+  # market.mp4: real supermarket CCTV (2014-09-21), 1920x1080, 15 fps, 5:00, three
+  # checkout lanes (lane 3 on the left is closed). To answer "WHICH till is empty and
+  # for how long", each open till is its own source with its own queue/staff zones,
+  # CSV and alerts. Both read the same file (so detection runs twice; a production
+  # build would run one detector and evaluate several zone pairs - see README).
+  - name: market-k1            # till 1 (right lane): cashier stands left of the belt
+    uri: videos/market.mp4
+    realtime: true
+    loop: true
+    process_fps: 4             # 15 fps clip -> every 4th frame (3.75/s)
+    line: null
+    zones:
+      queue:                   # customers right of the belt, incl. the paying/bagging spot
+        polygon: [[1500, 60], [1900, 60], [1900, 720], [1600, 720]]
+      staff:                   # cashier, incl. leaning to the end of the belt to bag
+        polygon: [[1280, 200], [1490, 200], [1570, 700], [1280, 700]]
+
+  - name: market-k2            # till 2 (middle lane): cashier sits left of the belt
+    uri: videos/market.mp4
+    realtime: true
+    loop: true
+    process_fps: 4
+    line: null
+    zones:
+      queue:                   # the aisle right of the middle belt
+        polygon: [[990, 40], [1250, 40], [1250, 560], [990, 560]]
+      staff:                   # seated cashier; when she leans forward her box ends near
+        # y 650-700, so the zone runs to the end of her station (narrowed at the bottom
+        # so customers picking up bags at the end of the belt are not taken for staff)
+        polygon: [[720, 180], [910, 180], [910, 600], [880, 760], [720, 760]]

@@ -73,6 +73,20 @@ def test_last_minute_includes_a_crossing_after_the_final_sample():
     assert fin["minute_rows"] and fin["minute_rows"][0]["in"] == 1   # the minute row must include it
 
 
+def test_zone_ref_head_counts_people_whose_box_runs_off_the_bottom():
+    # over-the-counter camera: a customer's box runs to the bottom edge (y=700), so the
+    # feet point is outside the queue zone (y 0-400) but the head point is inside it.
+    queue = [[0, 0], [300, 0], [300, 400], [0, 400]]
+    tall = (1, 50, 100, 150, 700, 0.9)            # head ~ y 190, feet y 700
+    feet_src = {"name": "a", "line": None, "zones": {"queue": {"polygon": queue}}}
+    head_src = {"name": "b", "line": None, "zones": {"queue": {"polygon": queue, "ref": "head"}}}
+    for src, want in ((feet_src, 0), (head_src, 1)):
+        pipe = StreamPipeline(src, ALERTS, sample_hz=1)
+        pipe.process(0.0, [tall])
+        r = pipe.process(1.0, [tall])
+        assert r["sample"]["queue"] == want, (src["name"], r["sample"])
+
+
 def _run_all():
     failed = 0
     for name, fn in sorted(globals().items()):

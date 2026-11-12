@@ -12,7 +12,13 @@ from __future__ import annotations
 
 
 class YoloDetector:
-    def __init__(self, weights, device=0, imgsz=640, conf=0.3, half=True,
+    """`conf` is the floor for boxes handed to the tracker, NOT the track threshold.
+    ByteTrack keeps a partly hidden person alive by matching LOW-score boxes
+    (track_low_thresh 0.1) to existing tracks, and only starts a new track at
+    new_track_thresh (0.25). A detector conf of 0.3 throws those low boxes away before
+    the tracker sees them, so occluded/distant people blink in and out. Keep ~0.1."""
+
+    def __init__(self, weights, device=0, imgsz=640, conf=0.1, half=True,
                  tracker="bytetrack.yaml"):
         from ultralytics import YOLO
         self.model = YOLO(weights)
@@ -49,7 +55,7 @@ def build_detector(model_cfg: dict) -> "YoloDetector":
         weights=model_cfg["weights"],
         device=model_cfg.get("device", 0),
         imgsz=model_cfg.get("imgsz", 640),
-        conf=model_cfg.get("conf", 0.3),
+        conf=model_cfg.get("conf", 0.1),
         half=model_cfg.get("half", True),
         tracker=model_cfg.get("tracker", "bytetrack.yaml"),
     )

@@ -25,11 +25,22 @@ def _is_file(uri) -> bool:
     return isinstance(uri, str) and not uri.lower().startswith(_STREAM_PREFIXES)
 
 
+def _free_gpu_cache():
+    """Release cached GPU memory after a failed inference (no-op without torch/CUDA)."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:                            # noqa: BLE001
+        pass
+
+
 class StreamWorker(threading.Thread):
     def __init__(self, source, model_cfg, output_cfg, alerts_cfg, sample_hz, detector, shared, stop_event,
                  open_capture=None):
         super().__init__(daemon=True, name=source["name"])
         self.source = source
+        self.model_cfg = dict(model_cfg or {})   # current detector settings (can be switched live)
         self.output_cfg = output_cfg
         self.alerts_cfg = alerts_cfg
         self.sample_hz = sample_hz
@@ -43,6 +54,22 @@ class StreamWorker(threading.Thread):
 
     def _log(self, msg):
         print(f"[{self.source['name']}] {msg}", flush=True)
+
+    def _switch_detector(self, want: dict):
+        """Swap the detector (weights / imgsz / conf) while running, from the web page.
+        A new model also starts a fresh tracker, so track IDs restart. If loading
+        fails the old detector keeps running."""
+        from .detector import build_detector
+        cfg = {**self.model_cfg, **want}
+        try:
+            det = build_detector(cfg)
+            det.warmup()
+        except Exception as exc:                 # noqa: BLE001 - keep the stream alive
+            self._log(f"model switch failed ({exc}); keeping {self.model_cfg.get('weights')}")
+            return
+        self.detector, self.model_cfg = det, cfg
+        self._fps_est = 0.0
+        self._log(f"model -> {cfg['weights']} imgsz={cfg.get('imgsz')} conf={cfg.get('conf')}")
 
     def run(self):
         name = self.source["name"]
@@ -71,6 +98,9 @@ class StreamWorker(threading.Thread):
         retries = 0
         frame_idx = 0
         fps = 25.0
+        stride = 1
+        t0_wall = time.monotonic()
+        infer_fail = 0
         cap = None
         try:
             while not self.stop.is_set():
@@ -86,6 +116,13 @@ class StreamWorker(threading.Thread):
                         continue
                     f = cap.get(cv2.CAP_PROP_FPS)
                     fps = f if 1 < f <= 240 else 25.0
+                    # process_fps: analyse only every k-th frame (e.g. 10 of a 30 fps camera);
+                    # counting and queue occupancy don't need every frame, the GPU does
+                    pf = self.source.get("process_fps")
+                    stride = max(1, int(round(fps / float(pf)))) if pf else 1
+                    # wall-clock anchor for real-time playback: if analysis falls behind we
+                    # stop sleeping and catch up instead of drifting later and later
+                    t0_wall = time.monotonic() - frame_idx / fps
 
                 if max_frames and frame_idx >= int(max_frames):
                     self._log(f"reached max_frames={max_frames}")
@@ -103,6 +140,10 @@ class StreamWorker(threading.Thread):
                                         queue_seconds=ctl.get("queue_seconds"),
                                         empty_seconds=ctl.get("empty_seconds"))
                     self._ctl_applied["th"] = th
+                want = {k: ctl[k] for k in ("weights", "imgsz", "conf") if k in ctl}
+                if want and want != self._ctl_applied.get("model"):
+                    self._switch_detector(want)
+                    self._ctl_applied["model"] = want
                 if ctl.get("paused"):
                     time.sleep(0.08)            # freeze on the current frame
                     continue
@@ -128,8 +169,31 @@ class StreamWorker(threading.Thread):
                     continue
                 retries = 0
 
+                if frame_idx % stride:                 # skipped frame: keep time and pace only
+                    frame_idx += 1
+                    if realtime:
+                        sleep = t0_wall + frame_idx / fps - time.monotonic()
+                        if sleep > 0:
+                            time.sleep(sleep)
+                    continue
+
                 t = frame_idx / fps
-                tracks = self.detector.track(frame)
+                try:
+                    tracks = self.detector.track(frame)
+                    infer_fail = 0
+                except Exception as exc:                 # noqa: BLE001 - e.g. CUDA out of memory
+                    # A failed inference must not end the stream: free GPU memory, back
+                    # off, skip this frame and try again. Give up only if it keeps failing.
+                    infer_fail += 1
+                    self._log(f"inference error {type(exc).__name__}: {str(exc).splitlines()[0][:90]} "
+                              f"(retry {infer_fail}/{max_retries})")
+                    _free_gpu_cache()
+                    if infer_fail > max_retries:
+                        self._log("inference keeps failing, giving up (other streams keep running)")
+                        break
+                    time.sleep(min(backoff * infer_fail, 10))
+                    frame_idx += 1
+                    continue
                 res = pipe.process(t, tracks)
                 for row in res["minute_rows"]:
                     writer.writerow(row)
@@ -144,6 +208,9 @@ class StreamWorker(threading.Thread):
                 totals = pipe.totals()
                 meta = {"fps": round(self._fps_est, 1), "t": round(t, 1),
                         "n_people": len(tracks),
+                        "model": os.path.basename(str(self.model_cfg.get("weights", "?"))),
+                        "imgsz": self.model_cfg.get("imgsz"),
+                        "conf": self.model_cfg.get("conf"),
                         "has_line": pipe.counter is not None,
                         "has_zones": pipe.alerts is not None}
                 if pipe.alerts is not None:
@@ -176,7 +243,7 @@ class StreamWorker(threading.Thread):
                     inst = 1.0 / dt
                     self._fps_est = inst if self._fps_est == 0 else 0.9 * self._fps_est + 0.1 * inst
                 if realtime:
-                    sleep = (1.0 / fps) - (time.monotonic() - t_start)
+                    sleep = t0_wall + frame_idx / fps - time.monotonic()
                     if sleep > 0:
                         time.sleep(sleep)
 

@@ -1,0 +1,10 @@
+# ByteTrack tuned for a dense crowd at a counter (cafe.mp4). Ultralytics defaults
+# start a new track only at score >= 0.25; people half-hidden in a tight crowd
+# score 0.1-0.25, so they never became tracks and the queue was under-counted.
+tracker_type: bytetrack
+track_high_thresh: 0.15   # first-stage match (default 0.25)
+track_low_thresh: 0.05    # second-stage, recovers briefly hidden people (default 0.1)
+new_track_thresh: 0.15    # start a track for a weak but persistent detection (default 0.25)
+track_buffer: 45          # keep lost tracks ~4 s at 12 fps (default 30)
+match_thresh: 0.8
+fuse_score: True

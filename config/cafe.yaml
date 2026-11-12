@@ -1,0 +1,63 @@
+# cafe.mp4: small convenience shop, ONE till, crowded (school kids). The camera is
+# behind the cashier, looking over his shoulder at the customers; the glass door
+# with the green frame is on the right edge. 640x720, 12 fps, 5:00.
+# Hard case: customers stand in a tight crowd, not a line, and hide each other;
+# their legs are hidden by the counter, so their boxes end at the counter top.
+model:
+  # Measured on this clip vs 12 hand-counted points (dev labels): queue MAE
+  #   yolov8s + default ByteTrack 3.08 | yolov8m + default 2.17 | yolov8m + crowd tracker 2.08
+  # Still under-counts ~2 people in the densest moments: people hidden in the crowd
+  # score 0.05-0.25; at 0.05 the detector over-counts (13 boxes for ~9 people).
+  weights: models/yolov8m.pt   # the crowd needs the larger model; ~20 fps alone (clip 12 fps)
+  device: 0
+  imgsz: 960                   # upsampled from 640 wide; 1280 did not help in the crowd
+  conf: 0.05                   # floor handed to the tracker
+  half: true
+  tracker: config/bytetrack_crowd.yaml   # starts tracks at 0.15 instead of 0.25
+
+output:
+  dir: output_cafe
+  live_view: true
+  annotated_video: false
+  blur_faces: true
+
+alerts:
+  queue:
+    min_people: 3              # 3+ waiting at the till...
+    min_seconds: 10            # ...for 10 s
+  empty_counter:
+    min_seconds: 15
+  grace_seconds: 2
+
+sample_hz: 1
+
+sources:
+  - name: cafe
+    uri: videos/cafe.mp4
+    realtime: true
+    loop: true
+    # Door: the glass door between the two green frames on the right. The line runs
+    # along the inner (left) green jamb; people come in from the right and walk left
+    # to the counter, so IN = moving left. Its lower end stops above the counter
+    # goods (y 340), so the cashier (box ends at the bottom edge) can never cross it.
+    line:
+      a: [515, 30]
+      b: [515, 340]
+      in_direction: [-1, 0]
+      margin: 8
+    zones:
+      # Customers in front of the counter, judged by the HEAD point: in this
+      # over-the-shoulder view 39% of boxes ran off the bottom of the frame, so their
+      # feet point fell outside any sensible queue zone. Plotting every track's head
+      # point over the clip, customers' heads sit at x 100-370 / y 30-420 and the
+      # cashier's at x 300-480 / y 260-430, so the polygon follows the customers'
+      # cloud and steps around the cashier's. People by the door/freezer (x>470) excluded.
+      queue:
+        ref: head
+        polygon: [[50, 30], [370, 30], [370, 250], [290, 260], [290, 430], [50, 430]]
+      # The cashier, judged by the FEET point: he is so close to the camera that his
+      # box always reaches the bottom edge (also when he bends down at bottom-left).
+      # Limit: a customer at the far left whose box also reaches the bottom can be
+      # taken for staff - that can only hide an empty-counter alert, never fake one.
+      staff:
+        polygon: [[130, 620], [640, 620], [640, 720], [130, 720]]

@@ -70,6 +70,20 @@ def test_turn_back_counts_one_in_and_one_out():
     assert (c.in_count, c.out_count) == (1, 1)
 
 
+def test_crossing_beside_the_end_of_the_line_is_not_counted():
+    # the door is only the segment x in [0, 200]; crossing y=100 at x=260 is not the door
+    c = LineCounter((0, 100), (200, 100), in_direction=(0, 1))
+    _run(c, [(260, 70), (260, 85), (260, 115), (260, 130)])
+    assert (c.in_count, c.out_count) == (0, 0)
+
+
+def test_walking_around_the_end_is_not_counted():
+    # starts above the door, walks round its right end, ends below it: not a crossing
+    c = LineCounter((0, 100), (200, 100), in_direction=(0, 1))
+    _run(c, [(150, 70), (190, 70), (260, 70), (260, 130), (190, 130), (150, 130)])
+    assert (c.in_count, c.out_count) == (0, 0)
+
+
 def test_two_people_counted_separately():
     c = LineCounter((0, 100), (200, 100), in_direction=(0, 1))
     c.update([(1, 50, 70), (2, 150, 130)])
@@ -103,6 +117,27 @@ def test_brief_dip_does_not_split_the_episode():
         qc = 0 if t == 21 else (3 if 2 <= t <= 25 else 0)   # 1-second dip, below grace
         done += m.update(t, queue_count=qc, staff_count=2)
     assert len(done) == 1 and done[0]["start"] == 2 and done[0]["end"] == 25
+
+
+def test_brief_dip_before_T_does_not_restart_the_timer():
+    # queue >= 3 from t=0..14 except a 1 s detector gap at t=6: still one alert from t=0
+    m = AlertManager("counter", {"min_people": 3, "min_seconds": 10}, {"min_seconds": 15}, grace=2)
+    done = []
+    for t in range(0, 25):
+        qc = 2 if t == 6 else (3 if t <= 14 else 0)
+        done += m.update(t, queue_count=qc, staff_count=2)
+    assert len(done) == 1 and done[0]["start"] == 0 and done[0]["end"] == 14
+
+
+def test_long_dip_before_T_does_restart_the_timer():
+    # a 3 s gap (> grace) really breaks the queue: neither 6 s run reaches T=10
+    m = AlertManager("counter", {"min_people": 3, "min_seconds": 10}, {"min_seconds": 15}, grace=2)
+    done = []
+    for t in range(0, 25):
+        qc = 3 if (t <= 5 or 9 <= t <= 14) else 0
+        done += m.update(t, queue_count=qc, staff_count=2)
+    done += m.flush()
+    assert done == []
 
 
 def test_empty_counter_needs_a_waiting_person():

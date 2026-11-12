@@ -31,6 +31,10 @@ class _Alert:
         self.peak = 0.0
 
     def update(self, t: float, cond: bool, metric: float):
+        """A dip shorter than ``grace`` never resets anything: not the running
+        T-second timer before the alert starts, and not an open episode. People
+        hidden behind each other for a second are a detector gap, not the queue
+        disappearing."""
         finished = None
         if cond:
             self._false_since = None
@@ -42,14 +46,12 @@ class _Alert:
             if not self.active and (t - self._since) >= self.min_seconds:
                 self.active = True
                 self.start = self._since
-        else:
-            if self.active:
-                if self._false_since is None:
-                    self._false_since = t
-                if (t - self._false_since) >= self.grace:
+        elif self._since is not None:            # the condition was building or active
+            if self._false_since is None:
+                self._false_since = t
+            if (t - self._false_since) >= self.grace:
+                if self.active:
                     finished = self._record()
-                    self._reset()
-            else:
                 self._reset()
         return finished
 
