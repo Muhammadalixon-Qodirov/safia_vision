@@ -3,6 +3,7 @@ Fails early with a clear message, so a bad line/zone is caught before the model
 loads rather than deep inside a stream."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
@@ -25,6 +26,15 @@ def load_config(path: str) -> dict:
     model.setdefault("conf", 0.3)
     model.setdefault("half", True)
     model.setdefault("tracker", "bytetrack.yaml")
+    # ANALYTICS_DEVICE=cpu (e.g. in a CPU-only container) overrides every model's
+    # device, including per-camera overrides below
+    env_device = os.environ.get("ANALYTICS_DEVICE")
+    if env_device:
+        dev = int(env_device) if env_device.isdigit() else env_device
+        model["device"] = dev
+        for s in cfg.get("sources") or []:
+            if isinstance(s.get("model"), dict):
+                s["model"]["device"] = dev
 
     out = cfg.setdefault("output", {})
     out.setdefault("dir", "output")

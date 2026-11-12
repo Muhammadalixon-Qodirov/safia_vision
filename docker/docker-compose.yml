@@ -9,9 +9,15 @@ services:
       - ../config:/app/config
       - ../models:/app/models
       - ../videos:/app/videos
-      - ../output:/app/output
+      - ../output_local:/app/output_local
     ports:
-      - "8000:8000"      # the optional web page, if you add --web to the command
+      - "8010:8010"      # live page: http://localhost:8010
+    environment:
+      # The image is CPU-only (python:3.11-slim), but the configs ask for GPU 0.
+      # This overrides every camera's model.device. CPU is slow: 4 cameras will
+      # not keep real time. For GPU: delete this line, use a CUDA base image and
+      # uncomment the deploy block below.
+      - ANALYTICS_DEVICE=cpu
     # --- GPU (optional): needs the NVIDIA Container Toolkit on the host, and a
     # CUDA base image in the Dockerfile. Then uncomment: ---
     # deploy:

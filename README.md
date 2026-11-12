@@ -40,7 +40,8 @@ was made is described under [Measurement](#measurement).
 | `counter2` | food counter with a roped queue (demo only, not measured) | [Queue Length Monitoring with Searchlight for Retail](https://youtu.be/5rkwqp6nnr4) | March Networks | 0:00-1:45 (whole clip) |
 
 **Licence.** All four videos are published under the **Standard YouTube
-Licence**, not Creative Commons. They are CCTV makers' published sample recordings
+Licence** (<https://www.youtube.com/static?template=terms>), not Creative Commons.
+The full list is also in `config/videos.json`. They are CCTV makers' published sample recordings
 of their cameras. They are used here only for this non-commercial evaluation, and
 they are **not redistributed**: the `videos/` folder is not in the repository. The
 pipeline is entirely config-driven, so it runs unchanged on any other clip.
@@ -129,20 +130,31 @@ does not change the count.
 # 1. environment
 python -m venv .venv && .venv\Scripts\activate          # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
-pip install torch --index-url https://download.pytorch.org/whl/cu121   # GPU build for your CUDA
+pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128   # GPU build (versions measured with)
 
 # 2. models (yolov8n/s/m, yolo11n/s) -> models/
 python scripts/download_models.py
 
-# 3. put the clips in videos/ as shop1.mp4, market.mp4, cafe.mp4, counter2.mp4 (sources above)
+# 3. clips -> videos/ (shop1, market, cafe, counter2), resolution checked against config/videos.json
+pip install yt-dlp==2026.7.4
+python scripts/download_videos.py
+#    YouTube may refuse automated downloads (HTTP 403 - it did on my machine); then
+#    save the four clips from the links in "Clips" at their top resolution under
+#    those names and re-run the script: it then only checks their resolution.
 
 # 4. run
 python run.py --config config/local.yaml --web --port 8010      # live demo, 4 cameras, real time
 python run.py --config config/measure.yaml                      # measurement: every frame, once
 python measurement/evaluate.py                                  # -> measurement/RESULTS.md
-#    or one command in a container:
-docker compose -f docker/docker-compose.yml up --build
+python measurement/speed.py                                     # per-stream FPS, GPU memory
 ```
+
+**Docker**, one command: `docker compose -f docker/docker-compose.yml up --build`
+starts the same 4-camera demo with its page on http://localhost:8010. The image is
+CPU-only, set with `ANALYTICS_DEVICE=cpu` in the compose file, so it will not keep
+real time. For the GPU, use a CUDA base image, remove that line and uncomment the
+`deploy` block. The Docker image was written but **not built or run** in this
+submission; the measured numbers all come from the native run.
 
 | Config | Purpose |
 |---|---|
@@ -244,13 +256,29 @@ whole clip, except around 0:20-0:40. The system raised episodes at 0:00-0:15,
 | | Value |
 |---|---|
 | Hardware | NVIDIA RTX 3050 8 GB, Intel i7-11700, Windows 11 |
-| Precision | FP16, PyTorch (Ultralytics), 960 px input |
-| yolov8s, 1920×1080 (market) | 38.6 fps detect + track, one camera alone |
-| yolov8s, 1270×720 (shop1) | 24.7 fps |
-| yolov8m, 640×720 (cafe crowd) | 21.4 fps |
-| 4 cameras together, every frame (`measure.yaml`) | 12 528 frames in 480 s = **26.1 frames/s in total**; GPU ~44% busy on average |
+| Precision | FP16, PyTorch (Ultralytics 8.4.83, torch 2.11 CUDA 12.8), 960 px model input |
+| Models | yolov8s: 11.2 M parameters, 22.6 MB · yolov8m: 25.9 M parameters, 52.1 MB |
+| GPU memory | PyTorch peak 0.25 GB allocated / 0.34 GB reserved with all 4 models in one process (plus the CUDA context, a few hundred MB) |
+| yolov8s, 1920×1080 (market), one camera alone | 38.6 fps detect + track |
+| yolov8s, 1270×720 (shop1), alone | 24.7 fps |
+| yolov8m, 640×720 (cafe crowd), alone | 21.4 fps |
+| 4 cameras together, every frame (`measure.yaml`) | 12 528 frames in 480-506 s = **24.7-26.1 frames/s in total** (two runs); GPU ~44% busy on average |
 | 4 cameras live (`local.yaml`, frame budget) | all 4 at **1.03-1.04× real time** |
 | Video decode alone | 109 fps at 1080p, 180 fps at 720p |
+
+Per stream, with all four running at once and every frame analysed
+(`python measurement/speed.py`):
+
+| Stream | Input | Frames | FPS while all 4 ran | Clip's own fps |
+|---|---|---|---|---|
+| shop1 | 1270×720 | 1 283 | 4.8 | 13 |
+| counter2 | 1920×1080 | 3 160 | 7.0 | 30 |
+| market | 1920×1080 | 4 485 | 8.1 | 15 |
+| cafe (yolov8m) | 640×720 | 3 600 | 6.7 | 12 |
+
+So analysing every frame of all four at once is slower than real time. That is why
+the live config gives each camera a frame budget (below), and with it all four keep
+real time.
 
 **The bottleneck is the CPU, not the GPU.** With 4 streams the GPU was idle more
 than half the time. CPU decode of three 1080p/720p videos, JPEG encoding for the

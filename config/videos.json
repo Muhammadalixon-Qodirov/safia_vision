@@ -1,5 +1,53 @@
 [
   {
+    "filename": "shop1.mp4",
+    "youtube_id": "KMJS66jBtVQ",
+    "height": 720,
+    "expect": "1270x720, 13 fps, 1:38",
+    "title": "HD CCTV Camera video 3MP 4MP iProx CCTV HDCCTVCameras.net retail store",
+    "source_url": "https://www.youtube.com/watch?v=KMJS66jBtVQ",
+    "author": "HDCCTV Cameras (https://www.youtube.com/@hdcctvcameras2461)",
+    "licence": "Standard YouTube Licence",
+    "licence_url": "https://www.youtube.com/static?template=terms",
+    "timestamps": "0:00-1:38 (whole clip)"
+  },
+  {
+    "filename": "market.mp4",
+    "youtube_id": "-8zyEwAa50Q",
+    "height": 1080,
+    "expect": "1920x1080, 15 fps, 4:59",
+    "title": "HD-SDI 1080P Hi Definition Megapixel Security Camera @ Super Market Checkout Sample #1",
+    "source_url": "https://www.youtube.com/watch?v=-8zyEwAa50Q",
+    "author": "www.CCTVFACTORY.com (https://www.youtube.com/@cmctechinc)",
+    "licence": "Standard YouTube Licence",
+    "licence_url": "https://www.youtube.com/static?template=terms",
+    "timestamps": "0:00-4:59 (whole clip)"
+  },
+  {
+    "filename": "cafe.mp4",
+    "youtube_id": "qIYmiKGt220",
+    "height": 720,
+    "expect": "640x720, 12 fps, 5:00",
+    "title": "Luton Shop Analouge HD iProx Counter area",
+    "source_url": "https://www.youtube.com/watch?v=qIYmiKGt220",
+    "author": "HDCCTV Cameras (https://www.youtube.com/@hdcctvcameras2461)",
+    "licence": "Standard YouTube Licence",
+    "licence_url": "https://www.youtube.com/static?template=terms",
+    "timestamps": "0:00-5:00 (whole clip)"
+  },
+  {
+    "filename": "counter2.mp4",
+    "youtube_id": "5rkwqp6nnr4",
+    "height": 1080,
+    "expect": "1920x1080, 30 fps, 1:45",
+    "title": "Queue Length Monitoring with Searchlight for Retail",
+    "source_url": "https://www.youtube.com/watch?v=5rkwqp6nnr4",
+    "author": "March Networks (https://www.youtube.com/@MarchNetworks)",
+    "licence": "Standard YouTube Licence",
+    "licence_url": "https://www.youtube.com/static?template=terms",
+    "timestamps": "0:00-1:45 (whole clip; live demo only, not measured)"
+  },
+  {
     "filename": "entrance.mp4",
     "download_url": "https://videos.pexels.com/video-files/6641527/uhd_30fps.mp4",
     "source_url": "https://www.pexels.com/video/people-going-inside-a-store-with-automatic-sliding-doors-6641527/",
@@ -7,7 +55,7 @@
     "licence": "Pexels License",
     "licence_url": "https://www.pexels.com/license/",
     "timestamps": "0:00-0:20",
-    "note": "store entrance, automatic sliding doors, 4K 20s - used for the door IN/OUT counting line"
+    "note": "early development clip (config/config.yaml, config/demo.yaml); not used in the measurement"
   },
   {
     "filename": "counter.mp4",
@@ -17,7 +65,7 @@
     "licence": "Pexels License",
     "licence_url": "https://www.pexels.com/license/",
     "timestamps": "0:00-0:08",
-    "note": "cashier counter with customers, 4K 8s - used for the queue and staff(empty-counter) zones. Short: good to demonstrate zones/alerts, but for a full queue-MAE (labels every 10s over >=2 min) swap in a longer counter clip."
+    "note": "early development clip; not used in the measurement"
   },
   {
     "filename": "crowd-doors.mp4",
@@ -27,6 +75,6 @@
     "licence": "Pexels License",
     "licence_url": "https://www.pexels.com/license/",
     "timestamps": "0:00-1:01",
-    "note": "crowd passing through doors, 1080p 61s - second counting line; the longest clip, best for hand-counting door crossings and testing no-double-count"
+    "note": "early development clip; not used in the measurement"
   }
 ]

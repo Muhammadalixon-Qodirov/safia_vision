@@ -1,15 +1,17 @@
-# pinned for reproducibility (case-study rule). CUDA build of torch is installed
-# separately per the README (index-url), because the right wheel depends on the
-# machine's CUDA version.
-ultralytics==8.4.106
-lapx==0.5.11                 # linear assignment for ByteTrack
-opencv-python==4.11.0.86
-numpy==2.1.1
-PyYAML==6.0.2
-# optional web page
-fastapi==0.115.6
+# Pinned to the exact versions every number in the README was measured with
+# (Python 3.11, Windows 11, RTX 3050). torch is installed separately because the
+# right wheel depends on the machine's CUDA version; measured with:
+#   pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+ultralytics==8.4.83
+lap==0.5.14                  # linear assignment for ByteTrack
+opencv-python==4.13.0.92
+numpy==2.4.4
+PyYAML==6.0.3
+# live web page
+fastapi==0.139.0
 uvicorn==0.34.0
 # tests
 pytest==8.3.4
-# optional, only for the ONNX export bonus (scripts/export_onnx.py):
-#   pip install onnx==1.23.2 onnxruntime-gpu   # or onnxruntime for CPU
+# optional:
+#   ONNX export bonus (scripts/export_onnx.py):  pip install onnx onnxruntime==1.27.0
+#   downloading the clips (scripts/download_videos.py):  pip install yt-dlp==2026.7.4

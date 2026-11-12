@@ -12,4 +12,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 # models and videos are mounted in (see docker-compose.yml), not baked into the image.
-CMD ["python", "run.py", "--config", "config/config.yaml"]
+# The 4-camera live demo with its web page on :8010 (same command as outside Docker).
+CMD ["python", "run.py", "--config", "config/local.yaml", "--web", "--host", "0.0.0.0", "--port", "8010"]
