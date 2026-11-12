@@ -15,9 +15,12 @@ def start_service(cfg: dict, shared: SharedState | None = None, stop_event: thre
     stop = stop_event or threading.Event()
     workers = []
     for src in cfg["sources"]:
-        detector = build_detector(cfg["model"])
+        # a source may override the global model settings (e.g. a crowded camera
+        # needs a larger model): source.model is merged over the top-level model
+        mcfg = {**cfg["model"], **(src.get("model") or {})}
+        detector = build_detector(mcfg)
         detector.warmup()
-        workers.append(StreamWorker(src, cfg["model"], cfg["output"], cfg["alerts"],
+        workers.append(StreamWorker(src, mcfg, cfg["output"], cfg["alerts"],
                                     cfg.get("sample_hz", 1), detector, shared, stop))
     for w in workers:
         w.start()

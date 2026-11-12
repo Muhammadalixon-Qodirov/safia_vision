@@ -22,13 +22,18 @@ def _poly(frame, pts, color):
     cv2.polylines(frame, [arr], True, color, 2)
 
 
-def draw(frame, tracks, source, totals):
+def draw(frame, tracks, source, totals, extra=None):
+    """`extra`: person boxes found by the detector but not (yet) tracked, drawn thin
+    and without an ID - a zone with count: detections counts them too."""
+    for d in extra or []:
+        cv2.rectangle(frame, (int(d[1]), int(d[2])), (int(d[3]), int(d[4])), _YELLOW, 1)
     # zones
     for name, z in (source.get("zones") or {}).items():
-        _poly(frame, z["polygon"], _YELLOW if name == "queue" else _BLUE)
-        p0 = z["polygon"][0]
-        cv2.putText(frame, name, (int(p0[0]) + 4, int(p0[1]) + 22),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, _WHITE, 2)
+        for poly in (z.get("polygons") or [z["polygon"]]):
+            _poly(frame, poly, _YELLOW if name == "queue" else _BLUE)
+            p0 = poly[0]
+            cv2.putText(frame, name, (int(p0[0]) + 4, int(p0[1]) + 22),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, _WHITE, 2)
     # door line
     line = source.get("line")
     if line:

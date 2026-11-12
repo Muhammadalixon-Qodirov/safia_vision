@@ -29,6 +29,22 @@ class YoloDetector:
             classes=[0],            # person only
             tracker=tracker, persist=True, verbose=False,
         )
+        # Every person box the model found in the last frame, BEFORE the tracker
+        # filters them, as (-1, x1, y1, x2, y2, conf). A hidden person in a crowd often
+        # scores 0.1-0.25: too low for ByteTrack to start a track, but a real person.
+        # Zones that only need "how many people now" (no IDs) can count these.
+        # The callback is added before the tracker's own (registered on the first
+        # track() call), so it sees the detections before they are replaced by tracks.
+        self.last_detections = []
+        self.model.add_callback("on_predict_postprocess_end", self._keep_detections)
+
+    def _keep_detections(self, predictor):
+        try:
+            b = predictor.results[0].boxes
+            self.last_detections = [(-1, *map(float, xyxy), float(c))
+                                    for xyxy, c in zip(b.xyxy.tolist(), b.conf.tolist())]
+        except Exception:                       # noqa: BLE001 - never break tracking
+            self.last_detections = []
 
     def track(self, frame):
         """Returns [(track_id, x1, y1, x2, y2, conf), ...] for people in the frame."""

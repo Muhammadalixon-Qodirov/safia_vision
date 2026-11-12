@@ -40,7 +40,7 @@ sources:
     uri: videos/shop1.mp4
     realtime: true
     loop: true
-    process_fps: 7             # 13 fps clip -> every 2nd frame (6.5/s)
+    process_fps: 5             # 13 fps clip -> every 3rd frame (~4.3/s)
     line:                      # along the glass door's threshold, IN = moving left
       a: [1105, 450]
       b: [1035, 715]
@@ -56,7 +56,7 @@ sources:
     uri: videos/counter2.mp4
     realtime: true
     loop: true
-    process_fps: 4             # 30 fps camera: every 8th frame (3.75/s); queues don't need 30 fps
+    process_fps: 3             # 30 fps camera: every 10th frame (3/s); queues don't need 30 fps
     line: null                 # no door in view
     zones:
       # customers stand behind the glass counter; their lower bodies are hidden, so
@@ -69,32 +69,62 @@ sources:
         polygon: [[1480, 800], [1920, 800], [1920, 1080], [1480, 1080]]
 
   # market.mp4: real supermarket CCTV (2014-09-21), 1920x1080, 15 fps, 5:00, three
-  # checkout lanes (lane 3 on the left is closed). To answer "WHICH till is empty and
-  # for how long", each open till is its own source with its own queue/staff zones,
-  # CSV and alerts. Both read the same file (so detection runs twice; a production
-  # build would run one detector and evaluate several zone pairs - see README).
-  - name: market-k1            # till 1 (right lane): cashier stands left of the belt
+  # checkout lanes (lane 3 on the left is closed). ONE camera, both open tills counted
+  # together: the queue zone is the two lanes, the staff zone the two cashier spots
+  # (a zone may have several polygons). So "queue" = everyone waiting at either till,
+  # "staff" = cashiers present (0-2), and the empty-counter alert fires only when BOTH
+  # cashiers are away while someone waits. (Earlier this clip ran as two sources,
+  # market-k1 / market-k2, one per till - that showed WHICH till was empty but ran the
+  # detector twice on the same video.)
+  - name: market
     uri: videos/market.mp4
     realtime: true
     loop: true
-    process_fps: 4             # 15 fps clip -> every 4th frame (3.75/s)
+    process_fps: 5             # 15 fps clip -> every 3rd frame (5/s); one detector now
     line: null
     zones:
-      queue:                   # customers right of the belt, incl. the paying/bagging spot
-        polygon: [[1500, 60], [1900, 60], [1900, 720], [1600, 720]]
-      staff:                   # cashier, incl. leaning to the end of the belt to bag
-        polygon: [[1280, 200], [1490, 200], [1570, 700], [1280, 700]]
+      queue:
+        polygons:
+          # till 1 (right lane): customers right of the belt, incl. the paying/bagging spot
+          - [[1500, 60], [1900, 60], [1900, 720], [1600, 720]]
+          # till 2 (middle lane): the aisle right of the middle belt
+          - [[990, 40], [1250, 40], [1250, 560], [990, 560]]
+      staff:
+        polygons:
+          # till 1: cashier stands left of the belt, incl. leaning to its end to bag
+          - [[1280, 200], [1490, 200], [1570, 700], [1280, 700]]
+          # till 2: seated cashier; when she leans forward her box ends near y 650-700,
+          # so the zone runs to the end of her station (narrowed at the bottom so
+          # customers picking up bags at the end of the belt are not taken for staff)
+          - [[720, 180], [910, 180], [910, 600], [880, 760], [720, 760]]
 
-  - name: market-k2            # till 2 (middle lane): cashier sits left of the belt
-    uri: videos/market.mp4
+  # cafe.mp4: crowded shop, one till, door on the right (same setup as config/cafe.yaml).
+  # The crowd needs the larger model and the crowd tracker - a per-source model override.
+  - name: cafe
+    uri: videos/cafe.mp4
     realtime: true
     loop: true
+    # Budget: 4 fps here keeps all 5 streams real time (cafe at its full 12 fps took the
+    # service to 0.4x). Its door needs every frame (people cross the doorway in ~1 s),
+    # so in THIS 5-stream demo cafe's door count is unreliable; the door on this clip is
+    # measured with config/cafe.yaml alone (full rate). Queue and till are fine at 4 fps.
     process_fps: 4
-    line: null
+    model:
+      weights: models/yolov8m.pt
+      conf: 0.05
+      tracker: config/bytetrack_crowd.yaml
+    line:
+      a: [520, 0]
+      b: [520, 480]
+      in_direction: [-1, 0]
+      margin: 6
     zones:
-      queue:                   # the aisle right of the middle belt
-        polygon: [[990, 40], [1250, 40], [1250, 560], [990, 560]]
-      staff:                   # seated cashier; when she leans forward her box ends near
-        # y 650-700, so the zone runs to the end of her station (narrowed at the bottom
-        # so customers picking up bags at the end of the belt are not taken for staff)
-        polygon: [[720, 180], [910, 180], [910, 600], [880, 760], [720, 760]]
+      queue:                   # see config/cafe.yaml (why count: detections)
+        ref: head
+        count: detections
+        min_conf: 0.1
+        smooth: 3
+        polygon: [[50, 60], [370, 60], [370, 250], [290, 260], [290, 430], [50, 430]]
+      staff:
+        merge: 0.6
+        polygon: [[130, 620], [640, 620], [640, 720], [130, 720]]

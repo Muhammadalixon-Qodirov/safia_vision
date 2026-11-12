@@ -52,6 +52,42 @@ class FlakyDetector:
         return [(1, 40, y2 - 100, 60, y2, 0.9)]
 
 
+class LongOutage(FlakyDetector):
+    """Raises `msg` on calls 2..7 (6 in a row) - more than max_retries (2) in the test."""
+    def __init__(self, msg):
+        super().__init__()
+        self.msg = msg
+
+    def track(self, frame):
+        i = self.calls
+        if 2 <= i <= 7:
+            self.calls += 1
+            raise RuntimeError(self.msg)
+        self.calls += 1
+        return []
+
+
+def _run(det, **extra):
+    src = {"name": "cam", "uri": "clip.mp4", "realtime": False, "reconnect_backoff": 0.001,
+           "line": {"a": [0, 100], "b": [200, 100], "in_direction": [0, 1]}, "zones": {}, **extra}
+    out = {"dir": str(Path(tempfile.mkdtemp()) / "out"), "annotated_video": False, "blur_faces": False}
+    alerts = {"queue": {"min_people": 3, "min_seconds": 10}, "empty_counter": {"min_seconds": 15}, "grace_seconds": 2}
+    shared = SharedState()
+    w = StreamWorker(src, {}, out, alerts, 1, det, shared, threading.Event(), open_capture=lambda u: Cap(12))
+    w.start()
+    w.join(timeout=20)
+
+
+def test_long_out_of_memory_is_waited_out_other_errors_give_up():
+    oom = LongOutage("CUDA error: out of memory")
+    _run(oom, max_retries=2)
+    assert oom.calls == 12, f"a long GPU-memory outage stopped the stream: {oom.calls}/12 frames"
+    bad = LongOutage("some other error")
+    _run(bad, max_retries=2)
+    assert bad.calls < 12, "a persistent non-memory error should still give up"
+    print("PASS  test_long_out_of_memory_is_waited_out_other_errors_give_up")
+
+
 def main():
     src = {"name": "cam", "uri": "clip.mp4", "realtime": False, "reconnect_backoff": 0.01,
            "line": {"a": [0, 100], "b": [200, 100], "in_direction": [0, 1]}, "zones": {}}
@@ -71,6 +107,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+        test_long_out_of_memory_is_waited_out_other_errors_give_up()
     except AssertionError as e:
         print(f"FAIL  test_inference_error: {e}")
         sys.exit(1)

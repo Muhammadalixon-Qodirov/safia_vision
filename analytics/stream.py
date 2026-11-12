@@ -25,6 +25,17 @@ def _is_file(uri) -> bool:
     return isinstance(uri, str) and not uri.lower().startswith(_STREAM_PREFIXES)
 
 
+def _iou(a, b):
+    """IoU of two (id, x1, y1, x2, y2, ...) boxes."""
+    iw = min(a[3], b[3]) - max(a[1], b[1])
+    ih = min(a[4], b[4]) - max(a[2], b[2])
+    if iw <= 0 or ih <= 0:
+        return 0.0
+    inter = iw * ih
+    union = (a[3] - a[1]) * (a[4] - a[2]) + (b[3] - b[1]) * (b[4] - b[2]) - inter
+    return inter / union if union > 0 else 0.0
+
+
 def _free_gpu_cache():
     """Release cached GPU memory after a failed inference (no-op without torch/CUDA)."""
     try:
@@ -183,18 +194,35 @@ class StreamWorker(threading.Thread):
                     infer_fail = 0
                 except Exception as exc:                 # noqa: BLE001 - e.g. CUDA out of memory
                     # A failed inference must not end the stream: free GPU memory, back
-                    # off, skip this frame and try again. Give up only if it keeps failing.
+                    # off, skip this frame and try again. Out of GPU memory is a shared,
+                    # passing condition (another program on the same GPU, e.g. a local LLM,
+                    # loads a model for a few minutes), so for it the stream waits and
+                    # retries for as long as it takes. Any other error gives up after
+                    # max_retries in a row.
                     infer_fail += 1
+                    oom = "out of memory" in str(exc).lower()
                     self._log(f"inference error {type(exc).__name__}: {str(exc).splitlines()[0][:90]} "
-                              f"(retry {infer_fail}/{max_retries})")
+                              f"(retry {infer_fail}" + ("" if oom else f"/{max_retries}") + ")")
                     _free_gpu_cache()
-                    if infer_fail > max_retries:
+                    if infer_fail > max_retries and not oom:
                         self._log("inference keeps failing, giving up (other streams keep running)")
                         break
-                    time.sleep(min(backoff * infer_fail, 10))
+                    time.sleep(min(backoff * infer_fail, 30 if oom else 10))
                     frame_idx += 1
                     continue
-                res = pipe.process(t, tracks)
+                # every person box of the frame (incl. ones too weak to track), for
+                # zones that count detections, for drawing and for blurring all faces
+                dets = getattr(self.detector, "last_detections", None)
+                res = pipe.process(t, tracks, dets)
+                # untracked = person boxes not covered by a track. Their faces are
+                # blurred too (privacy must not depend on the tracker); they are shown
+                # and counted as "people now" only where a zone counts detections,
+                # from that zone's min_conf.
+                untracked = [d for d in (dets or []) if d[5] >= 0.1
+                             and all(_iou(d, tk) < 0.5 for tk in tracks)]
+                floor = min([z.min_conf for z in (pipe.zones or {}).values()
+                             if z.use_detections] or [1.1])
+                extra = [d for d in untracked if d[5] >= floor]
                 for row in res["minute_rows"]:
                     writer.writerow(row)
                     cf.flush()
@@ -207,7 +235,7 @@ class StreamWorker(threading.Thread):
 
                 totals = pipe.totals()
                 meta = {"fps": round(self._fps_est, 1), "t": round(t, 1),
-                        "n_people": len(tracks),
+                        "n_people": len(tracks) + len(extra),
                         "model": os.path.basename(str(self.model_cfg.get("weights", "?"))),
                         "imgsz": self.model_cfg.get("imgsz"),
                         "conf": self.model_cfg.get("conf"),
@@ -222,8 +250,8 @@ class StreamWorker(threading.Thread):
                 if self.output_cfg.get("annotated_video") or live_view:
                     vis = frame.copy()
                     if blur:
-                        privacy.blur_heads(vis, tracks)
-                    annotate.draw(vis, tracks, self.source, totals)
+                        privacy.blur_heads(vis, list(tracks) + untracked)
+                    annotate.draw(vis, tracks, self.source, totals, extra)
                     if self.output_cfg.get("annotated_video"):
                         if vid is None:
                             h, w = frame.shape[:2]

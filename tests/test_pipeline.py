@@ -87,6 +87,88 @@ def test_zone_ref_head_counts_people_whose_box_runs_off_the_bottom():
         assert r["sample"]["queue"] == want, (src["name"], r["sample"])
 
 
+def _zone_counts(zone_cfg, frames, dt=0.5):
+    """Feed frames (lists of tracks) every dt seconds; return the per-frame zone count."""
+    from analytics.pipeline import _Zone
+    z = _Zone(zone_cfg)
+    return [z.count(i * dt, tr) for i, tr in enumerate(frames)]
+
+
+BOX = [[0, 0], [300, 0], [300, 400], [0, 400]]
+
+
+def test_min_dwell_ignores_a_person_passing_through():
+    walker = person(1, 50, 300)
+    # in the zone for 1.0 s (3 frames at 0.5 s) then gone: never reaches 2 s
+    assert max(_zone_counts({"polygon": BOX, "min_dwell": 2}, [[walker]] * 3 + [[]] * 4)) == 0
+    # standing 3 s: counted once the 2 s have passed
+    counts = _zone_counts({"polygon": BOX, "min_dwell": 2}, [[walker]] * 7)
+    assert counts[:4] == [0, 0, 0, 0] and counts[4:] == [1, 1, 1], counts
+
+
+def test_hold_keeps_a_briefly_hidden_person_and_then_lets_go():
+    p = person(1, 50, 300)
+    frames = [[p]] * 4 + [[]] * 4 + [[p]] * 2 + [[]] * 8   # hidden 2 s, back, then left
+    counts = _zone_counts({"polygon": BOX, "hold": 3}, frames)
+    assert counts[:10] == [1] * 10, counts                # never dropped while hidden 2 s
+    assert counts[-1] == 0, counts                        # gone for 4 s > hold -> released
+
+
+def test_merge_counts_one_person_split_into_two_boxes_once():
+    whole = (1, 100, 100, 280, 350, 0.8)
+    head = (2, 110, 110, 180, 200, 0.4)                   # a second box inside the first
+    other = (3, 10, 250, 60, 350, 0.9)                    # a different person beside them
+    assert _zone_counts({"polygon": BOX}, [[whole, head, other]]) == [3]
+    assert _zone_counts({"polygon": BOX, "merge": 0.6}, [[whole, head, other]]) == [2]
+
+
+def test_count_detections_includes_people_too_weak_to_track():
+    zone = {"polygon": BOX, "count": "detections", "min_conf": 0.1}
+    tracked = (5, 20, 200, 60, 350, 0.8)
+    hidden = (-1, 100, 200, 140, 350, 0.15)               # found, but too weak for a track
+    noise = (-1, 200, 200, 240, 350, 0.06)                # below min_conf
+    from analytics.pipeline import _Zone
+    z = _Zone(zone)
+    assert z.count(0.0, [tracked], [(-1, *tracked[1:]), hidden, noise]) == 2
+    assert _Zone({"polygon": BOX}).count(0.0, [tracked], [hidden]) == 1   # default: tracks
+    # without detections given (e.g. a fake detector) it falls back to the tracks
+    assert z.count(0.0, [tracked], None) == 1
+
+
+def test_smooth_ignores_a_short_drop_in_the_count():
+    # 6 people in the queue zone every frame, except 1 s of blurred frames with only 2
+    src = {"name": "s", "line": None,
+           "zones": {"queue": {"polygon": BOX, "smooth": 3}}}
+    six = [person(i, 20 + 40 * i, 300) for i in range(6)]
+    pipe = StreamPipeline(src, ALERTS, sample_hz=1)
+    samples = {}
+    for k in range(0, 100):                     # 10 frames per second, 10 s
+        t = k / 10
+        r = pipe.process(t, six[:2] if 50 <= k < 60 else six)
+        if r["sample"]:
+            samples[int(t)] = r["sample"]["queue"]
+    assert min(samples[s] for s in range(3, 10)) == 6, samples
+    # without smoothing the same drop shows up
+    src["zones"]["queue"].pop("smooth")
+    pipe = StreamPipeline(src, ALERTS, sample_hz=1)
+    low = []
+    for k in range(0, 100):
+        r = pipe.process(k / 10, six[:2] if 50 <= k < 60 else six)
+        if r["sample"]:
+            low.append(r["sample"]["queue"])
+    assert min(low) == 2, low
+
+
+def test_zone_with_two_polygons_counts_both_together():
+    # one camera, two tills: the queue zone is two lanes, counted as one zone
+    lane1 = [[0, 0], [100, 0], [100, 400], [0, 400]]
+    lane2 = [[200, 0], [300, 0], [300, 400], [200, 400]]
+    from analytics.pipeline import _Zone
+    z = _Zone({"polygons": [lane1, lane2]})
+    people = [person(1, 50, 300), person(2, 250, 300), person(3, 150, 300)]   # 3rd: between lanes
+    assert z.count(0.0, people) == 2
+
+
 def _run_all():
     failed = 0
     for name, fn in sorted(globals().items()):

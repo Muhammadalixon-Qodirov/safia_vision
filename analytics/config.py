@@ -54,8 +54,22 @@ def load_config(path: str) -> dict:
             _require(len(line["a"]) == 2 and len(line["b"]) == 2,
                      f"source {s['name']!r}: line a/b must be [x, y]")
         for zname, z in (s.get("zones") or {}).items():
-            _require("polygon" in z and len(z["polygon"]) >= 3,
-                     f"source {s['name']!r}: zone {zname!r} needs a polygon of >= 3 points")
+            polys = z.get("polygons") or ([z["polygon"]] if "polygon" in z else [])
+            _require(polys and all(len(p) >= 3 for p in polys),
+                     f"source {s['name']!r}: zone {zname!r} needs a polygon (or polygons) "
+                     f"of >= 3 points each")
             _require(z.get("ref", "feet") in ("feet", "head", "center"),
                      f"source {s['name']!r}: zone {zname!r} ref must be feet, head or center")
+            for key in ("min_dwell", "hold", "smooth"):
+                _require(float(z.get(key, 0) or 0) >= 0,
+                         f"source {s['name']!r}: zone {zname!r} {key} must be >= 0 seconds")
+            _require(z.get("count", "tracks") in ("tracks", "detections"),
+                     f"source {s['name']!r}: zone {zname!r} count must be tracks or detections")
+            if z.get("count") == "detections":
+                _require(not z.get("min_dwell") and not z.get("hold"),
+                         f"source {s['name']!r}: zone {zname!r}: min_dwell/hold need track IDs, "
+                         f"not available with count: detections")
+            if z.get("merge") is not None:
+                _require(0 < float(z["merge"]) <= 1,
+                         f"source {s['name']!r}: zone {zname!r} merge must be in (0, 1]")
     return cfg

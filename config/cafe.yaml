@@ -36,15 +36,20 @@ sources:
     uri: videos/cafe.mp4
     realtime: true
     loop: true
-    # Door: the glass door between the two green frames on the right. The line runs
-    # along the inner (left) green jamb; people come in from the right and walk left
-    # to the counter, so IN = moving left. Its lower end stops above the counter
-    # goods (y 340), so the cashier (box ends at the bottom edge) can never cross it.
+    # Door: the gap between the white pillar and the green door frame on the right.
+    # People walk through it in about a second and then disappear behind the pillar,
+    # so this camera must be analysed at its FULL frame rate (12 fps): tracking every
+    # 2nd frame found 0 exits, every 3rd frame 1 crossing in 5 minutes. Measured over
+    # the clip at full rate (crowd tracker): line x 515 y 30-340 (the first version,
+    # on the pillar's edge) -> people vanish before crossing it; x 520 over y 0-480 ->
+    # IN 5 / OUT 4; x 540 / 550 -> fewer (people are hidden behind the goods there).
+    # The lower end (y 480) keeps the cashier out: his feet are at the bottom edge.
+    # IN = moving left (into the shop), OUT = moving right (towards the door).
     line:
-      a: [515, 30]
-      b: [515, 340]
+      a: [520, 0]
+      b: [520, 480]
       in_direction: [-1, 0]
-      margin: 8
+      margin: 6
     zones:
       # Customers in front of the counter, judged by the HEAD point: in this
       # over-the-shoulder view 39% of boxes ran off the bottom of the frame, so their
@@ -52,12 +57,35 @@ sources:
       # point over the clip, customers' heads sit at x 100-370 / y 30-420 and the
       # cashier's at x 300-480 / y 260-430, so the polygon follows the customers'
       # cloud and steps around the cashier's. People by the door/freezer (x>470) excluded.
+      # The top edge is at y 60: the far end of the aisle (shoppers at the back shelves)
+      # is left out; moving it lower cuts off the crowd when it grows back into the aisle.
+      # count: detections - the zone counts every person box the detector found this
+      # frame (conf >= 0.1), not only confirmed tracks. Measured over the whole clip at
+      # the live frame rate vs the dev labels: tracks MAE 2.33 -> detections 1.00 (0.75
+      # in a second run), same speed. Why: a person hidden in the crowd scores
+      # 0.1-0.25, too low for ByteTrack to start a track, but they ARE detected.
+      #   min_conf 0.12 / 0.15 / 0.2 -> MAE 1.25 / 1.67 / 1.75 (fewer hidden people)
+      #   merging overlapping boxes -> worse (1.8-2.2): people in a crowd overlap too
+      # Tried and rejected: min_dwell / hold on tracks (the tracker re-IDs people every
+      # few seconds, so `hold` kept stale IDs and over-counted: 7 shown with 3 in view),
+      # a head detector (SCUT-HEAD YOLOv8, MAE 1.50), a 2x zoom of the queue (0.75 but
+      # half the speed). Limit: still ~1 person short in the densest seconds.
+      # smooth: 3 - motion-blurred / compressed frames make the per-frame count drop
+      # (12 -> 3 within one second at 131 s) and doubled boxes add one; the median over
+      # 3 s removes both: sudden drops 4 -> 0, jumps of 3+ per second 33 -> 2, MAE 0.42.
       queue:
         ref: head
-        polygon: [[50, 30], [370, 30], [370, 250], [290, 260], [290, 430], [50, 430]]
+        count: detections
+        min_conf: 0.1
+        smooth: 3
+        polygon: [[50, 60], [370, 60], [370, 250], [290, 260], [290, 430], [50, 430]]
       # The cashier, judged by the FEET point: he is so close to the camera that his
       # box always reaches the bottom edge (also when he bends down at bottom-left).
       # Limit: a customer at the far left whose box also reaches the bottom can be
       # taken for staff - that can only hide an empty-counter alert, never fake one.
+      # merge 0.6: the detector often splits the one cashier into two boxes (head and
+      # shoulder when he bends down, or two boxes on him standing) - count them once.
+      # (no hold here: holding the ID of a duplicate box would bring the "2" back)
       staff:
+        merge: 0.6
         polygon: [[130, 620], [640, 620], [640, 720], [130, 720]]
