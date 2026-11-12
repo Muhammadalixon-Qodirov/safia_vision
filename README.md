@@ -170,7 +170,7 @@ lines and zones.
 **How the ground truth was made.** Labels were drafted with an AI assistant
 (Claude) from frame sheets of the **raw** video (no system boxes shown). Every label
 is in `measurement/hand/labels.json` with its time and a short description of the
-person, so each one can be re-checked. A `[low, high]` range marks someone standing
+person, and I checked them against the video myself. A `[low, high]` range marks someone standing
 on the edge of a zone or mostly hidden; a system value inside the range counts as
 correct.
 
